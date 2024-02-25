@@ -260,7 +260,11 @@ void desertMirageSwap(SokuLib::BattleManager *This, bool del = false)
 	auto players = (SokuLib::CharacterManager**)((int)This + 0x0C);
 	auto arr = *(SokuLib::CharacterManager ***)(*(int *)SokuLib::ADDR_GAME_DATA_MANAGER + 0x40);
 
+	if (!arr)
+		return;
 	for (int i = 0; i < 2; i++) {
+		if (!arr[i])
+			continue;
 		if ((arr[i]->effectiveWeather == CUSTOMWEATHER_DESERT_MIRAGE) != (characterBackup[i] == nullptr))
 			continue;
 
