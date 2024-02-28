@@ -80,7 +80,8 @@ struct GameDataManager {
 }; // 0x58
 
 enum CustomWeathers {
-	CUSTOMWEATHER_DESERT_MIRAGE = SokuLib::WEATHER_CLEAR + 1,
+	CUSTOMWEATHER_ANGEL_HALO = SokuLib::WEATHER_CLEAR + 1,
+	CUSTOMWEATHER_DESERT_MIRAGE,
 	CUSTOMWEATHER_SHOOTING_STAR,
 	CUSTOMWEATHER_SIZE
 };
@@ -207,6 +208,7 @@ const short weatherTimes[] {
 	999, // WEATHER_AURORA
 	500, // WEATHER_TWILIGHT
 	000, // WEATHER_CLEAR
+	999, // CUSTOMWEATHER_ANGEL_HALO
 	999, // CUSTOMWEATHER_DESERT_MIRAGE
 	999, // CUSTOMWEATHER_SHOOTING_STAR
 };
@@ -378,8 +380,10 @@ int __fastcall CBattleManager_OnMatchProcess(SokuLib::BattleManager *This)
 		SokuLib::activeWeather != SokuLib::WEATHER_CLEAR &&
 		SokuLib::displayedWeather == CUSTOMWEATHER_SHOOTING_STAR &&
 		(timer / 100) != (SokuLib::weatherCounter / 100)
-	)
+	) {
+		SokuLib::playSEWaveBuffer(72);
 		SokuLib::activeWeather = (SokuLib::Weather) selectRandomWeather(false);
+	}
 	return ret;
 }
 
@@ -427,7 +431,7 @@ void __fastcall handleSwitchWeather(unsigned obj, SokuLib::Weather weatherId)
 	if (weatherId == SokuLib::WEATHER_MONSOON)
 		return switchWeather(obj, SokuLib::WEATHER_TWILIGHT);
 	if (weatherId == SokuLib::WEATHER_TWILIGHT)
-		return switchWeather(obj, CUSTOMWEATHER_DESERT_MIRAGE);
+		return switchWeather(obj, SokuLib::WEATHER_CLEAR + 1);
 	if (weatherId == SokuLib::WEATHER_AURORA)
 		return switchWeather(obj, SokuLib::WEATHER_SUNNY);
 	if (weatherId == (CUSTOMWEATHER_SIZE - 1))
@@ -507,8 +511,8 @@ auto FUN_006dcdf0 = reinterpret_cast<void (__stdcall *)(unsigned action, float x
 
 unsigned infoEffectUpdateSwitch_extra(SokuLib::v2::InfoEffectObject *obj, unsigned short action)
 {
-	unsigned weather = action < 330 ? SokuLib::WEATHER_TWILIGHT : CUSTOMWEATHER_DESERT_MIRAGE + (action - 330) / 10;
-	unsigned startObj = action < 330 ? 310 : 330 + (weather - CUSTOMWEATHER_DESERT_MIRAGE) * 10;
+	unsigned weather = action < 330 ? SokuLib::WEATHER_TWILIGHT : SokuLib::WEATHER_CLEAR + (action - 320) / 10;
+	unsigned startObj = action < 330 ? 310 : 320 + (weather - SokuLib::WEATHER_CLEAR) * 10;
 
 	switch (action % 10) {
 	case 0:
@@ -685,6 +689,49 @@ void freeFrame(unsigned id)
 	frames.erase(frames.find(id));
 }
 
+void weatherEffect()
+{
+	int i;
+	SokuLib::CharacterManager *This;
+	auto ObjectHandler_SpawnBullet = (void (__thiscall *)(void *, int, float, float, unsigned char, unsigned, void *, int))0x46EB30;
+	auto FUN_00438ce0 = reinterpret_cast<void (__thiscall *)(void *, unsigned, float, float, unsigned, unsigned)>(0x438CE0);
+
+	__asm MOV [This], ESI
+	if (This->swordOfRaptureDebuffTimeLeft > 0)
+		return;
+	switch (This->effectiveWeather) {
+	case CUSTOMWEATHER_ANGEL_HALO:
+		if (This->offset_0x4C0[0xD]) {
+			This->dropInvulTimeLeft = 2;
+			break;
+		}
+		if (!(50 <= This->objectBase.opponent->objectBase.action && This->objectBase.opponent->objectBase.action < 150))
+			break;
+		This->offset_0x4C0[0xD] = true;
+		SokuLib::weatherCounter /= 2;
+		ObjectHandler_SpawnBullet(This, 0x456, This->objectBase.position.x, 0, This->objectBase.direction, 0xffffffff, &i, 3);
+		FUN_00438ce0(This, 0x8B, This->objectBase.position.x, This->objectBase.position.y, 1, 1);
+		break;
+	}
+}
+
+const unsigned checkCalm_ret = 0x488949;
+using SokuLib::WEATHER_CALM;
+
+void __declspec(naked) checkCalm()
+{
+	__asm {
+		CMP EAX, WEATHER_CALM
+		JZ ret_
+		CMP EAX, CUSTOMWEATHER_ANGEL_HALO
+		JZ ret_
+		MOV byte ptr [ESI + 0x4CD], 0x0
+		MOV word ptr [ESI + 0x4CE], 0x0
+	ret_:
+		JMP [checkCalm_ret]
+	}
+}
+
 struct GiurollCallbacks {
 	unsigned (*saveState)();
 	void (*loadStatePre)(size_t frame, unsigned);
@@ -768,6 +815,10 @@ extern "C" __declspec(dllexport) bool Initialize(HMODULE hMyModule, HMODULE hPar
 	SokuLib::TamperNearJmpOpr(0x4397D7, selectRandomWeather);
 	memcpy((void *)0x4397E9, (void *)0x4397E4, 3);
 	SokuLib::TamperNearCall(0x4397E4, onWeatherActivate);
+
+	SokuLib::TamperNearJmp(0x488934, checkCalm);
+
+	new SokuLib::Trampoline(0x4889BE, weatherEffect, 6);
 
 	// Filesystem first patch
 	*(char *)0x40D1FB = 0xEB;
