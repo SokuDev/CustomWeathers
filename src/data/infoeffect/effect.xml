@@ -1003,6 +1003,7 @@
 		</frame>
 	</animation>
 
+
 	<animation id="340" index="0" loop="1">
 		<frame image="weatherOrbYellow.bmp" index="0" unknown="0" xtexoffset="0" ytexoffset="0" texwidth="128" texheight="96" xoffset="64" yoffset="43" duration="9999" rendergroup="2">
 			<blend mode="0" color="ffffffff" xscale="100" yscale="100" vertflip="0" horzflip="0" angle="0"/>
@@ -1062,6 +1063,38 @@
 	</animation>
 	<animation id="355" index="0" loop="1">
 		<frame image="weatherNameB_shootingStar.bmp" index="0" unknown="0" xtexoffset="0" ytexoffset="0" texwidth="256" texheight="128" xoffset="128" yoffset="64" duration="9999" rendergroup="2">
+			<blend mode="0" color="ffffffff" xscale="100" yscale="100" vertflip="0" horzflip="0" angle="0"/>
+		</frame>
+	</animation>
+
+
+	<animation id="360" index="0" loop="1">
+		<frame image="weatherOrbBlue.bmp" index="0" unknown="0" xtexoffset="0" ytexoffset="0" texwidth="128" texheight="96" xoffset="64" yoffset="43" duration="9999" rendergroup="2">
+			<blend mode="0" color="ffffffff" xscale="100" yscale="100" vertflip="0" horzflip="0" angle="0"/>
+		</frame>
+	</animation>
+	<animation id="361" index="0" loop="1">
+		<frame image="weatherOrbBlue.bmp" index="0" unknown="0" xtexoffset="0" ytexoffset="0" texwidth="128" texheight="96" xoffset="64" yoffset="43" duration="9999" rendergroup="2">
+			<blend mode="1" color="ffffffff" xscale="100" yscale="100" vertflip="0" horzflip="0" angle="0"/>
+		</frame>
+	</animation>
+	<animation id="362" index="0" loop="1">
+		<frame image="weatherAuraBlue.bmp" index="0" unknown="0" xtexoffset="0" ytexoffset="0" texwidth="128" texheight="128" xoffset="64" yoffset="64" duration="9999" rendergroup="2">
+			<blend mode="1" color="ffffffff" xscale="50" yscale="50" vertflip="0" horzflip="0" angle="0"/>
+		</frame>
+	</animation>
+	<animation id="363" index="0" loop="1">
+		<frame image="weatherName_thunderstorm.bmp" index="0" unknown="0" xtexoffset="0" ytexoffset="0" texwidth="128" texheight="32" xoffset="64" yoffset="16" duration="9999" rendergroup="2">
+			<blend mode="0" color="ffffffff" xscale="100" yscale="100" vertflip="0" horzflip="0" angle="0"/>
+		</frame>
+	</animation>
+	<animation id="364" index="0" loop="1">
+		<frame image="weatherName_thunderstorm.bmp" index="0" unknown="0" xtexoffset="0" ytexoffset="0" texwidth="128" texheight="32" xoffset="64" yoffset="16" duration="9999" rendergroup="2">
+			<blend mode="0" color="ffffffff" xscale="100" yscale="100" vertflip="0" horzflip="0" angle="0"/>
+		</frame>
+	</animation>
+	<animation id="365" index="0" loop="1">
+		<frame image="weatherNameB_thunderstorm.bmp" index="0" unknown="0" xtexoffset="0" ytexoffset="0" texwidth="256" texheight="128" xoffset="128" yoffset="64" duration="9999" rendergroup="2">
 			<blend mode="0" color="ffffffff" xscale="100" yscale="100" vertflip="0" horzflip="0" angle="0"/>
 		</frame>
 	</animation>

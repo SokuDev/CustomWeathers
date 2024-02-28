@@ -83,6 +83,7 @@ enum CustomWeathers {
 	CUSTOMWEATHER_ANGEL_HALO = SokuLib::WEATHER_CLEAR + 1,
 	CUSTOMWEATHER_DESERT_MIRAGE,
 	CUSTOMWEATHER_SHOOTING_STAR,
+	CUSTOMWEATHER_THUNDERSTORM,
 	CUSTOMWEATHER_SIZE
 };
 
@@ -211,6 +212,7 @@ const short weatherTimes[] {
 	999, // CUSTOMWEATHER_ANGEL_HALO
 	999, // CUSTOMWEATHER_DESERT_MIRAGE
 	999, // CUSTOMWEATHER_SHOOTING_STAR
+	333, // CUSTOMWEATHER_THUNDERSTORM
 };
 
 void loadExtraCharactersThread()
@@ -516,7 +518,7 @@ unsigned infoEffectUpdateSwitch_extra(SokuLib::v2::InfoEffectObject *obj, unsign
 
 	switch (action % 10) {
 	case 0:
-		if (obj->frameState.currentFrame == 0 && SokuLib::weatherCounter >= 900) {
+		if (obj->frameState.currentFrame == 0 && SokuLib::weatherCounter >= weatherTimes[weather] - 100) {
 			FUN_006dcdf0(startObj + 3, obj->position.x, obj->position.y - 10.0f, 1, 1);
 			if (SokuLib::displayedWeather == weather && SokuLib::activeWeather != SokuLib::WEATHER_CLEAR)
 				FUN_006dcdf0(startObj + 5, 320.0, 120.0, 1, 1);
@@ -732,6 +734,44 @@ void __declspec(naked) checkCalm()
 	}
 }
 
+
+const unsigned switchNormal = 0x47C5B3;
+
+enum BlockResult {
+	BLOCKRESULT_HIT,
+	BLOCKRESULT_HIGH_RIGHTBLOCK,
+	BLOCKRESULT_HIGH_WRONGBLOCKBLOCK,
+	BLOCKRESULT_LOW_RIGHTBLOCK,
+	BLOCKRESULT_LOW_WRONGBLOCKBLOCK,
+	BLOCKRESULT_AIRBLOCK,
+	BLOCKRESULT_GUARDPOINT
+};
+
+void __declspec(naked) onBlockHook()
+{
+	__asm {
+		PUSH EAX
+		MOV EAX, [EDI + 0x170]
+		MOV EAX, [EAX + 0x52C]
+		CMP EAX, CUSTOMWEATHER_THUNDERSTORM
+		POP EAX
+		JNE normal
+
+		TEST EAX, EAX
+		JZ normal
+
+		// Wrong blocking already results in a crush
+		CMP EAX, BLOCKRESULT_HIGH_WRONGBLOCKBLOCK
+		JE forceHit
+		CMP EAX, BLOCKRESULT_LOW_WRONGBLOCKBLOCK
+		JNE normal
+	forceHit:
+		XOR EAX, EAX
+	normal:
+		JMP [switchNormal]
+	}
+}
+
 struct GiurollCallbacks {
 	unsigned (*saveState)();
 	void (*loadStatePre)(size_t frame, unsigned);
@@ -815,7 +855,7 @@ extern "C" __declspec(dllexport) bool Initialize(HMODULE hMyModule, HMODULE hPar
 	SokuLib::TamperNearJmpOpr(0x4397D7, selectRandomWeather);
 	memcpy((void *)0x4397E9, (void *)0x4397E4, 3);
 	SokuLib::TamperNearCall(0x4397E4, onWeatherActivate);
-
+	SokuLib::TamperNearJmp(0x47C5AE, onBlockHook);
 	SokuLib::TamperNearJmp(0x488934, checkCalm);
 
 	new SokuLib::Trampoline(0x4889BE, weatherEffect, 6);
