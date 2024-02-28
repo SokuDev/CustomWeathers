@@ -292,8 +292,6 @@ void desertMirageSwap(SokuLib::BattleManager *This, bool del = false)
 		arr[i] = &elem;
 		if (hasBackup)
 			characterBackup[i] = nullptr;
-		else
-			extraCharacters[i] = nullptr;
 
 		players[i]->objectBase.owner2 = players[i];
 		players[i]->objectBase.position = old->objectBase.position;
@@ -313,9 +311,11 @@ void desertMirageSwap(SokuLib::BattleManager *This, bool del = false)
 		players[i]->objectBase.opponent = players[!i];
 		players[i]->objectBase.action = SokuLib::ACTION_IDLE;
 		players[i]->objectBase.animate();
+
 		(*(int (__thiscall **)(SokuLib::CharacterManager *))(*(unsigned *)&players[i]->objectBase.vtable + 0x28))(players[i]);
 		(&SokuLib::camera.offset_0x44)[i] = &players[i]->objectBase.position.x;
 		(&SokuLib::camera.offset_0x4C)[i] = &players[i]->objectBase.position.y;
+
 		needRefresh = true;
 		if (hasBackup)
 			extraCharacters[i].reset();
