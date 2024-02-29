@@ -1100,6 +1100,38 @@
 	</animation>
 
 
+	<animation id="370" index="0" loop="1">
+		<frame image="weatherOrbRed.bmp" index="0" unknown="0" xtexoffset="0" ytexoffset="0" texwidth="128" texheight="96" xoffset="64" yoffset="43" duration="9999" rendergroup="2">
+			<blend mode="0" color="ffffffff" xscale="100" yscale="100" vertflip="0" horzflip="0" angle="0"/>
+		</frame>
+	</animation>
+	<animation id="371" index="0" loop="1">
+		<frame image="weatherOrbRed.bmp" index="0" unknown="0" xtexoffset="0" ytexoffset="0" texwidth="128" texheight="96" xoffset="64" yoffset="43" duration="9999" rendergroup="2">
+			<blend mode="1" color="ffffffff" xscale="100" yscale="100" vertflip="0" horzflip="0" angle="0"/>
+		</frame>
+	</animation>
+	<animation id="372" index="0" loop="1">
+		<frame image="weatherAuraRed.bmp" index="0" unknown="0" xtexoffset="0" ytexoffset="0" texwidth="128" texheight="128" xoffset="64" yoffset="64" duration="9999" rendergroup="2">
+			<blend mode="1" color="ffffffff" xscale="50" yscale="50" vertflip="0" horzflip="0" angle="0"/>
+		</frame>
+	</animation>
+	<animation id="373" index="0" loop="1">
+		<frame image="weatherName_impassableSmog.bmp" index="0" unknown="0" xtexoffset="0" ytexoffset="0" texwidth="128" texheight="32" xoffset="64" yoffset="16" duration="9999" rendergroup="2">
+			<blend mode="0" color="ffffffff" xscale="100" yscale="100" vertflip="0" horzflip="0" angle="0"/>
+		</frame>
+	</animation>
+	<animation id="374" index="0" loop="1">
+		<frame image="weatherName_impassableSmog.bmp" index="0" unknown="0" xtexoffset="0" ytexoffset="0" texwidth="128" texheight="32" xoffset="64" yoffset="16" duration="9999" rendergroup="2">
+			<blend mode="0" color="ffffffff" xscale="100" yscale="100" vertflip="0" horzflip="0" angle="0"/>
+		</frame>
+	</animation>
+	<animation id="375" index="0" loop="1">
+		<frame image="weatherNameB_impassableSmog.bmp" index="0" unknown="0" xtexoffset="0" ytexoffset="0" texwidth="256" texheight="128" xoffset="128" yoffset="64" duration="9999" rendergroup="2">
+			<blend mode="0" color="ffffffff" xscale="100" yscale="100" vertflip="0" horzflip="0" angle="0"/>
+		</frame>
+	</animation>
+
+
 
 
 

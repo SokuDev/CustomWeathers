@@ -84,6 +84,7 @@ enum CustomWeathers {
 	CUSTOMWEATHER_DESERT_MIRAGE,
 	CUSTOMWEATHER_SHOOTING_STAR,
 	CUSTOMWEATHER_THUNDERSTORM,
+	CUSTOMWEATHER_IMPASSABLE_FOG,
 	CUSTOMWEATHER_SIZE
 };
 
@@ -103,6 +104,7 @@ static int (__thiscall *ogHudRender)(void *);
 static bool init = false;
 static SokuLib::SWRFont font;
 static const auto sokuRand = reinterpret_cast<int (*)(int)>(0x4099F0);
+static unsigned char characterAlpha[2] = {255, 255};
 static SokuLib::CharacterManager *characterBackup[2] = {nullptr, nullptr};
 static std::shared_ptr<SokuLib::CharacterManager> extraCharacters[2] = {nullptr, nullptr};
 static std::pair<SokuLib::PlayerInfo, SokuLib::PlayerInfo> extra;
@@ -120,6 +122,8 @@ private:
 	std::shared_ptr<SokuLib::CharacterManager> desertMirage_extraCharacters[2];
 	bool desertMirage_swapped1;
 	bool desertMirage_swapped2;
+	bool impassableSmog_characterAlpha1;
+	bool impassableSmog_characterAlpha2;
 	unsigned char desertMirage_chr1;
 	unsigned char desertMirage_chr2;
 	unsigned char twilight_alpha;
@@ -132,6 +136,8 @@ public:
 		this->desertMirage_swapped2 = characterBackup[1] != nullptr;
 		this->desertMirage_chr1 = extra.first.character;
 		this->desertMirage_chr2 = extra.second.character;
+		this->impassableSmog_characterAlpha1 = characterAlpha[0];
+		this->impassableSmog_characterAlpha2 = characterAlpha[1];
 		this->desertMirage_extraCharacters[0] = extraCharacters[0];
 		this->desertMirage_extraCharacters[1] = extraCharacters[1];
 		this->twilight_alpha = viewWindow.tint.a;
@@ -176,6 +182,8 @@ public:
 
 	void restorePost()
 	{
+		characterAlpha[0] = this->impassableSmog_characterAlpha1;
+		characterAlpha[1] = this->impassableSmog_characterAlpha2;
 		viewWindow.tint.a = this->twilight_alpha;
 		viewWindow.tint.r = this->twilight_red;
 		extra.first.character = (SokuLib::Character)this->desertMirage_chr1;
@@ -213,6 +221,7 @@ const short weatherTimes[] {
 	999, // CUSTOMWEATHER_DESERT_MIRAGE
 	999, // CUSTOMWEATHER_SHOOTING_STAR
 	333, // CUSTOMWEATHER_THUNDERSTORM
+	500, // CUSTOMWEATHER_IMPASSABLE_FOG
 };
 
 void loadExtraCharactersThread()
@@ -340,6 +349,8 @@ SokuLib::BattleManager *__fastcall CBattleManager_Destructor(SokuLib::BattleMana
 	if (extraCharacterLoadingThread.joinable())
 		extraCharacterLoadingThread.join();
 	desertMirageSwap(This, true);
+	characterAlpha[0] = 255;
+	characterAlpha[1] = 255;
 	return (This->*ogBattleMgrDestructor)(unknown);
 }
 
@@ -393,6 +404,29 @@ int __fastcall CBattleManager_OnProcess(SokuLib::BattleManager *This)
 {
 	auto ret = (This->*ogBattleMgrOnProcess)();
 
+	for (int i = 0 ; i < 2; i++) {
+		auto chr = dataMgr->players[i];
+
+		if (chr->swordOfRaptureDebuffTimeLeft || chr->effectiveWeather != CUSTOMWEATHER_IMPASSABLE_FOG) {
+			if (chr->objectBase.renderInfos.color.a >= 250)
+				chr->objectBase.renderInfos.color.a = 255;
+			else
+				chr->objectBase.renderInfos.color.a += 5;
+			if (characterAlpha[i] != 255) {
+				if (characterAlpha[i] > 250)
+					characterAlpha[i] = 255;
+				else
+					characterAlpha[i] += 5;
+				chr->objectBase.renderInfos.color.a = characterAlpha[i];
+			}
+		} else {
+			if (characterAlpha[i] < 5)
+				characterAlpha[i] = 0;
+			else
+				characterAlpha[i] -= 5;
+			chr->objectBase.renderInfos.color.a = characterAlpha[i];
+		}
+	}
 	if (!init) {
 		init = true;
 		loadTexture(viewWindow, "data/infoeffect/view_window.png", true);
@@ -693,12 +727,13 @@ void freeFrame(unsigned id)
 
 void weatherEffect()
 {
-	int i;
 	SokuLib::CharacterManager *This;
-	auto ObjectHandler_SpawnBullet = (void (__thiscall *)(void *, int, float, float, unsigned char, unsigned, void *, int))0x46EB30;
-	auto FUN_00438ce0 = reinterpret_cast<void (__thiscall *)(void *, unsigned, float, float, unsigned, unsigned)>(0x438CE0);
-
 	__asm MOV [This], ESI
+
+	int i = This == dataMgr->players[1];
+	const auto ObjectHandler_SpawnBullet = (void (__thiscall *)(void *, int, float, float, unsigned char, unsigned, void *, int))0x46EB30;
+	const auto FUN_00438ce0 = reinterpret_cast<void (__thiscall *)(void *, unsigned, float, float, unsigned, unsigned)>(0x438CE0);
+
 	if (This->swordOfRaptureDebuffTimeLeft > 0)
 		return;
 	switch (This->effectiveWeather) {
@@ -727,7 +762,10 @@ void __declspec(naked) checkCalm()
 		JZ ret_
 		CMP EAX, CUSTOMWEATHER_ANGEL_HALO
 		JZ ret_
+		CMP EAX, CUSTOMWEATHER_IMPASSABLE_FOG
+		JZ resetOne
 		MOV byte ptr [ESI + 0x4CD], 0x0
+	resetOne:
 		MOV word ptr [ESI + 0x4CE], 0x0
 	ret_:
 		JMP [checkCalm_ret]
