@@ -85,6 +85,9 @@ enum CustomWeathers {
 	CUSTOMWEATHER_SHOOTING_STAR,
 	CUSTOMWEATHER_THUNDERSTORM,
 	CUSTOMWEATHER_IMPASSABLE_FOG,
+	CUSTOMWEATHER_ANTINOMY_OF_COMMON_WEATHER,
+	CUSTOMWEATHER_FORGETFUL_WIND,
+	CUSTOMWEATHER_BLIZZARD,
 	CUSTOMWEATHER_SIZE
 };
 
@@ -97,10 +100,14 @@ void deleteCharacter(SokuLib::CharacterManager *p)
 static SokuLib::BattleManager *(SokuLib::BattleManager::*ogBattleMgrDestructor)(char unknown);
 static int (SokuLib::BattleManager::*ogBattleMgrOnMatchProcess)();
 static int (SokuLib::BattleManager::*ogBattleMgrOnProcess)();
+static int (SokuLib::SelectClient::*ogSelectClientOnProcess)();
+static int (SokuLib::SelectServer::*ogSelectServerOnProcess)();
+static int (SokuLib::Select::*ogSelectOnProcess)();
 static int (__thiscall *ogHudRender)(void *);
 
 #define setRenderMode(mode) ((void (__thiscall *)(int, int))0x404B80)(0x896B4C, mode)
 
+static bool needCleaning = false;
 static bool init = false;
 static SokuLib::SWRFont font;
 static const auto sokuRand = reinterpret_cast<int (*)(int)>(0x4099F0);
@@ -112,9 +119,10 @@ static bool loadingExtraChrs = false;
 static std::thread extraCharacterLoadingThread;
 static CInfoManager *&hud = *(CInfoManager **)0x8985E8;
 static SokuLib::DrawUtils::Sprite viewWindow;
-const auto switchWeather = (void (__thiscall *)(unsigned, unsigned))0x4388e0;
+static const auto switchWeather = (void (__thiscall *)(unsigned, unsigned))0x4388e0;
 static GameDataManager*& dataMgr = *(GameDataManager**)SokuLib::ADDR_GAME_DATA_MANAGER;
-std::mutex extraChrMutex;
+static std::mutex extraChrMutex;
+static std::list<SokuLib::KeyInput> lastInputs[2];
 
 
 class SavedFrame {
@@ -128,6 +136,8 @@ private:
 	unsigned char desertMirage_chr2;
 	unsigned char twilight_alpha;
 	unsigned char twilight_red;
+	std::list<SokuLib::KeyInput> blizzard_lastInputs1;
+	std::list<SokuLib::KeyInput> blizzard_lastInputs2;
 
 public:
 	SavedFrame()
@@ -142,6 +152,8 @@ public:
 		this->desertMirage_extraCharacters[1] = extraCharacters[1];
 		this->twilight_alpha = viewWindow.tint.a;
 		this->twilight_red = viewWindow.tint.r;
+		this->blizzard_lastInputs1 = lastInputs[0];
+		this->blizzard_lastInputs2 = lastInputs[1];
 	}
 
 	void restorePre()
@@ -182,6 +194,8 @@ public:
 
 	void restorePost()
 	{
+		lastInputs[0] = this->blizzard_lastInputs1;
+		lastInputs[1] = this->blizzard_lastInputs2;
 		characterAlpha[0] = this->impassableSmog_characterAlpha1;
 		characterAlpha[1] = this->impassableSmog_characterAlpha2;
 		viewWindow.tint.a = this->twilight_alpha;
@@ -222,6 +236,9 @@ const short weatherTimes[] {
 	999, // CUSTOMWEATHER_SHOOTING_STAR
 	333, // CUSTOMWEATHER_THUNDERSTORM
 	500, // CUSTOMWEATHER_IMPASSABLE_FOG
+	999, // CUSTOMWEATHER_ANTINOMY_OF_COMMON_WEATHER
+	500, // CUSTOMWEATHER_FORGETFUL_WIND
+	999, // CUSTOMWEATHER_BLIZZARD
 };
 
 void loadExtraCharactersThread()
@@ -344,16 +361,6 @@ void desertMirageSwap(SokuLib::BattleManager *This, bool del = false)
 	}
 }
 
-SokuLib::BattleManager *__fastcall CBattleManager_Destructor(SokuLib::BattleManager *This, int, char unknown)
-{
-	if (extraCharacterLoadingThread.joinable())
-		extraCharacterLoadingThread.join();
-	desertMirageSwap(This, true);
-	characterAlpha[0] = 255;
-	characterAlpha[1] = 255;
-	return (This->*ogBattleMgrDestructor)(unknown);
-}
-
 void loadTexture(SokuLib::DrawUtils::Sprite &sprite, const char *path, bool camera = false)
 {
 	sprite.texture.loadFromGame(path);
@@ -400,10 +407,53 @@ int __fastcall CBattleManager_OnMatchProcess(SokuLib::BattleManager *This)
 	return ret;
 }
 
+void cleanup(SokuLib::BattleManager *This)
+{
+	if (extraCharacterLoadingThread.joinable())
+		extraCharacterLoadingThread.join();
+	desertMirageSwap(This, true);
+	extra.first.character = SokuLib::CHARACTER_RANDOM;
+	extra.second.character = SokuLib::CHARACTER_RANDOM;
+	characterAlpha[0] = 255;
+	characterAlpha[1] = 255;
+	lastInputs[0].clear();
+	lastInputs[1].clear();
+	needCleaning = false;
+}
+
+SokuLib::BattleManager *__fastcall CBattleManager_Destructor(SokuLib::BattleManager *This, int, char unknown)
+{
+	if (needCleaning)
+		cleanup(This);
+	return (This->*ogBattleMgrDestructor)(unknown);
+}
+
+int __fastcall CSelectCL_OnProcess(SokuLib::SelectClient *This)
+{
+	if (needCleaning)
+		cleanup(&SokuLib::getBattleMgr());
+	return (This->*ogSelectClientOnProcess)();
+}
+
+int __fastcall CSelectSV_OnProcess(SokuLib::SelectServer *This)
+{
+	if (needCleaning)
+		cleanup(&SokuLib::getBattleMgr());
+	return (This->*ogSelectServerOnProcess)();
+}
+
+int __fastcall CSelect_OnProcess(SokuLib::Select *This)
+{
+	if (needCleaning)
+		cleanup(&SokuLib::getBattleMgr());
+	return (This->*ogSelectOnProcess)();
+}
+
 int __fastcall CBattleManager_OnProcess(SokuLib::BattleManager *This)
 {
 	auto ret = (This->*ogBattleMgrOnProcess)();
 
+	needCleaning = true;
 	for (int i = 0 ; i < 2; i++) {
 		auto chr = dataMgr->players[i];
 
@@ -810,6 +860,49 @@ void __declspec(naked) onBlockHook()
 	}
 }
 
+const auto normalInputProcessing = (void (*)())0x46C937;
+const auto skipInputProcessing = (void (*)())0x46CA0C;
+
+bool __fastcall delayInputs(SokuLib::CharacterManager &chr)
+{
+	lastInputs[chr.isRightPlayer].push_back(chr.keyManager->keymapManager->input);
+	if (chr.effectiveWeather == CUSTOMWEATHER_BLIZZARD) {
+		if (lastInputs[chr.isRightPlayer].size() != 9)
+			lastInputs[chr.isRightPlayer].push_back(chr.keyManager->keymapManager->input);
+	} else {
+		if (lastInputs[chr.isRightPlayer].size() != 1)
+			lastInputs[chr.isRightPlayer].pop_front();
+	}
+	if (lastInputs[chr.isRightPlayer].size() == 1) {
+		lastInputs[chr.isRightPlayer].pop_front();
+		return true;
+	}
+	memcpy(&chr.keyMap, &lastInputs[chr.isRightPlayer].front(), sizeof(chr.keyMap));
+	lastInputs[chr.isRightPlayer].pop_front();
+	return false;
+}
+
+void __declspec(naked) addInputDelay()
+{
+	__asm {
+		PUSH EAX
+		PUSH ECX
+		PUSH EDX
+		MOV ECX, ESI
+		CALL delayInputs
+		POP EDX
+		POP ECX
+		TEST AL, AL
+		POP EAX
+		JNZ normalProcessing
+		JMP skipInputProcessing
+
+	normalProcessing:
+		MOV [ESI + 0x754], EBP
+		JMP normalInputProcessing
+	}
+}
+
 struct GiurollCallbacks {
 	unsigned (*saveState)();
 	void (*loadStatePre)(size_t frame, unsigned);
@@ -870,6 +963,9 @@ extern "C" __declspec(dllexport) bool Initialize(HMODULE hMyModule, HMODULE hPar
 	extra.second.character = SokuLib::CHARACTER_RANDOM;
 	VirtualProtect((PVOID)RDATA_SECTION_OFFSET, RDATA_SECTION_SIZE, PAGE_EXECUTE_WRITECOPY, &old);
 	ogBattleMgrDestructor = SokuLib::TamperDword(&SokuLib::VTable_BattleManager.destructor, CBattleManager_Destructor);
+	ogSelectOnProcess = SokuLib::TamperDword(&SokuLib::VTable_Select.onProcess, CSelect_OnProcess);
+	ogSelectClientOnProcess = SokuLib::TamperDword(&SokuLib::VTable_SelectClient.onProcess, CSelectCL_OnProcess);
+	ogSelectServerOnProcess = SokuLib::TamperDword(&SokuLib::VTable_SelectServer.onProcess, CSelectSV_OnProcess);
 	ogBattleMgrOnProcess = SokuLib::TamperDword(&SokuLib::VTable_BattleManager.onProcess, CBattleManager_OnProcess);
 	ogBattleMgrOnMatchProcess = SokuLib::TamperDword(&SokuLib::VTable_BattleManager.maybeOnProgress, CBattleManager_OnMatchProcess);
 	ogHudRender = (int (__thiscall *)(void *))SokuLib::TamperDword(0x85b544, onHudRender);
@@ -895,7 +991,7 @@ extern "C" __declspec(dllexport) bool Initialize(HMODULE hMyModule, HMODULE hPar
 	SokuLib::TamperNearCall(0x4397E4, onWeatherActivate);
 	SokuLib::TamperNearJmp(0x47C5AE, onBlockHook);
 	SokuLib::TamperNearJmp(0x488934, checkCalm);
-
+	SokuLib::TamperNearJmp(0x46C931, addInputDelay);
 	new SokuLib::Trampoline(0x4889BE, weatherEffect, 6);
 
 	// Filesystem first patch
