@@ -135,8 +135,8 @@ private:
 	std::shared_ptr<SokuLib::CharacterManager> desertMirage_extraCharacters[2];
 	bool desertMirage_swapped1;
 	bool desertMirage_swapped2;
-	bool impassableSmog_characterAlpha1;
-	bool impassableSmog_characterAlpha2;
+	unsigned char impassableSmog_characterAlpha1;
+	unsigned char impassableSmog_characterAlpha2;
 	unsigned char desertMirage_chr1;
 	unsigned char desertMirage_chr2;
 	unsigned char twilight_alpha;
@@ -244,6 +244,7 @@ const short weatherTimes[] {
 	999, // CUSTOMWEATHER_ANTINOMY_OF_COMMON_WEATHER
 	500, // CUSTOMWEATHER_FORGETFUL_WIND
 	999, // CUSTOMWEATHER_BLIZZARD
+	999, // CUSTOMWEATHER_RAGNAROK
 };
 
 void loadExtraCharactersThread()
@@ -379,7 +380,7 @@ void loadTexture(SokuLib::DrawUtils::Sprite &sprite, const char *path, bool came
 
 int selectRandomWeather(bool includeAurora)
 {
-	auto result = sokuRand(CUSTOMWEATHER_SIZE - 3 + includeAurora * 2);
+	/*auto result = sokuRand(CUSTOMWEATHER_SIZE - 3 + includeAurora * 2);
 
 	if (result >= SokuLib::WEATHER_AURORA && !includeAurora)
 		result++;
@@ -387,7 +388,47 @@ int selectRandomWeather(bool includeAurora)
 		result++;
 	if (result >= CUSTOMWEATHER_SHOOTING_STAR && !includeAurora)
 		result++;
+	return result;*/
+
+	auto result = sokuRand((CUSTOMWEATHER_SIZE - SokuLib::WEATHER_CLEAR + 1) - 3 + includeAurora * 2);
+
+	result += SokuLib::WEATHER_AURORA;
+	if (result >= SokuLib::WEATHER_AURORA && !includeAurora)
+		result++;
+	if (result >= SokuLib::WEATHER_CLEAR)
+		result++;
+	if (result >= CUSTOMWEATHER_SHOOTING_STAR && !includeAurora)
+		result++;
 	return result;
+}
+
+void __fastcall handleSwitchWeather(unsigned obj, SokuLib::Weather weatherId)
+{
+	/*if (weatherId == SokuLib::WEATHER_MONSOON)
+		return switchWeather(obj, SokuLib::WEATHER_TWILIGHT);
+	if (weatherId == SokuLib::WEATHER_TWILIGHT)
+		return switchWeather(obj, SokuLib::WEATHER_CLEAR + 1);
+	if (weatherId == SokuLib::WEATHER_AURORA)
+		return switchWeather(obj, SokuLib::WEATHER_SUNNY);
+	if (weatherId == (CUSTOMWEATHER_SIZE - 1))
+		return switchWeather(obj, SokuLib::WEATHER_AURORA);
+	return switchWeather(obj, weatherId + 1);*/
+	if (weatherId == SokuLib::WEATHER_TWILIGHT)
+		return switchWeather(obj, SokuLib::WEATHER_CLEAR + 1);
+	if (weatherId == SokuLib::WEATHER_AURORA)
+		return switchWeather(obj, SokuLib::WEATHER_TWILIGHT);
+	if (weatherId == (CUSTOMWEATHER_SIZE - 1))
+		return switchWeather(obj, SokuLib::WEATHER_AURORA);
+	return switchWeather(obj, weatherId + 1);
+}
+
+void __declspec(naked) handleSwitchWeather_hook()
+{
+	__asm {
+		MOV EDX, EAX
+		ADD ECX, 0x130
+		JMP handleSwitchWeather
+	}
 }
 
 void weatherActivate()
@@ -428,6 +469,66 @@ int __fastcall CBattleManager_OnMatchProcess(SokuLib::BattleManager *This)
 		SokuLib::activeWeather = (SokuLib::Weather) selectRandomWeather(false);
 		weatherActivate();
 	}
+	if (SokuLib::activeWeather == CUSTOMWEATHER_FORGETFUL_WIND) {
+		timeStopLeft = 2;
+		if (This->leftCharacterManager.projectileInvulTimer <= 1)
+			This->leftCharacterManager.projectileInvulTimer = 2;
+		if (This->rightCharacterManager.projectileInvulTimer <= 1)
+			This->rightCharacterManager.projectileInvulTimer = 2;
+	} else
+		timeStopLeft = 0;
+	if (SokuLib::activeWeather == CUSTOMWEATHER_ANTINOMY_OF_COMMON_WEATHER) {
+		if (This->leftCharacterManager.objectBase.position.y == 0)
+			This->leftCharacterManager.objectBase.position.y += 10;
+		if (This->rightCharacterManager.objectBase.position.y == 0)
+			This->rightCharacterManager.objectBase.position.y += 10;
+	}
+
+	desertMirageSwap(This);
+	if (!loadingExtraChrs && (extraCharacters[0] == nullptr || extraCharacters[1] == nullptr)) {
+		loadingExtraChrs = true;
+		if (extraCharacterLoadingThread.joinable())
+			extraCharacterLoadingThread.join();
+		if (extraCharacters[0] == nullptr && extra.first.character == SokuLib::CHARACTER_RANDOM)
+			extra.first.character = static_cast<SokuLib::Character>(sokuRand(SokuLib::CHARACTER_RANDOM));
+		extra.first.palette = 0;
+		if (extraCharacters[1] == nullptr && extra.second.character == SokuLib::CHARACTER_RANDOM)
+			extra.second.character = static_cast<SokuLib::Character>(sokuRand(SokuLib::CHARACTER_RANDOM));
+		extra.second.palette = extra.first.character == extra.second.character;
+		extra.second.isRight = true;
+		extraCharacterLoadingThread = std::thread{loadExtraCharactersThread};
+	}
+	for (int i = 0 ; i < 2; i++) {
+		auto chr = dataMgr->players[i];
+
+		if (chr->swordOfRaptureDebuffTimeLeft || chr->effectiveWeather != CUSTOMWEATHER_IMPASSABLE_FOG) {
+			if (characterAlpha[i] != 255) {
+				if (characterAlpha[i] > 250)
+					characterAlpha[i] = 255;
+				else
+					characterAlpha[i] += 5;
+				chr->objectBase.renderInfos.color.a = characterAlpha[i];
+			}
+		} else {
+			if (characterAlpha[i] < 5)
+				characterAlpha[i] = 0;
+			else
+				characterAlpha[i] -= 5;
+			chr->objectBase.renderInfos.color.a = characterAlpha[i];
+		}
+	}
+
+	auto &player = (SokuLib::sceneId == SokuLib::SCENE_BATTLECL ? This->rightCharacterManager : This->leftCharacterManager);
+
+	if (player.effectiveWeather == SokuLib::WEATHER_TWILIGHT) {
+		if (viewWindow.tint.r != 255)
+			viewWindow.tint.r += 15;
+		else if (viewWindow.tint.a != 255)
+			viewWindow.tint.a += 5;
+	} else if (viewWindow.tint.a) {
+		viewWindow.tint.a -= 5;
+		viewWindow.tint.r = 0;
+	}
 	return ret;
 }
 
@@ -436,6 +537,8 @@ void cleanup(SokuLib::BattleManager *This)
 	if (extraCharacterLoadingThread.joinable())
 		extraCharacterLoadingThread.join();
 	desertMirageSwap(This, true);
+	extraCharacters[0].reset();
+	extraCharacters[1].reset();
 	extra.first.character = SokuLib::CHARACTER_RANDOM;
 	extra.second.character = SokuLib::CHARACTER_RANDOM;
 	characterAlpha[0] = 255;
@@ -473,66 +576,33 @@ int __fastcall CSelect_OnProcess(SokuLib::Select *This)
 	return (This->*ogSelectOnProcess)();
 }
 
+void checkCiF()
+{
+	if (*(unsigned *)0x47D7A0 == 0x5314EC83)
+		return;
+
+	EXCEPTION_RECORD local_32c;
+	_EXCEPTION_POINTERS local_2dc;
+	unsigned local_2d4 = 0x10001;
+
+	memset(&local_32c, 0, 0x50);
+	local_2dc.ExceptionRecord = &local_32c;
+	local_2dc.ContextRecord = (PCONTEXT)&local_2d4;
+	local_32c.ExceptionCode = STATUS_ASSERTION_FAILURE;
+	UnhandledExceptionFilter(&local_2dc);
+	ExitProcess(STATUS_ASSERTION_FAILURE);
+}
+
 int __fastcall CBattleManager_OnProcess(SokuLib::BattleManager *This)
 {
 	auto ret = (This->*ogBattleMgrOnProcess)();
 
 	needCleaning = true;
-	for (int i = 0 ; i < 2; i++) {
-		auto chr = dataMgr->players[i];
-
-		if (chr->swordOfRaptureDebuffTimeLeft || chr->effectiveWeather != CUSTOMWEATHER_IMPASSABLE_FOG) {
-			if (chr->objectBase.renderInfos.color.a >= 250)
-				chr->objectBase.renderInfos.color.a = 255;
-			else
-				chr->objectBase.renderInfos.color.a += 5;
-			if (characterAlpha[i] != 255) {
-				if (characterAlpha[i] > 250)
-					characterAlpha[i] = 255;
-				else
-					characterAlpha[i] += 5;
-				chr->objectBase.renderInfos.color.a = characterAlpha[i];
-			}
-		} else {
-			if (characterAlpha[i] < 5)
-				characterAlpha[i] = 0;
-			else
-				characterAlpha[i] -= 5;
-			chr->objectBase.renderInfos.color.a = characterAlpha[i];
-		}
-	}
 	if (!init) {
 		init = true;
+		checkCiF();
 		loadTexture(viewWindow, "data/infoeffect/view_window.png", true);
 		viewWindow.tint.a = 0;
-	}
-	desertMirageSwap(This);
-	if (!loadingExtraChrs && (extraCharacters[0] == nullptr || extraCharacters[1] == nullptr)) {
-		loadingExtraChrs = true;
-		if (extraCharacterLoadingThread.joinable())
-			extraCharacterLoadingThread.join();
-		if (extraCharacters[0] == nullptr && extra.first.character == SokuLib::CHARACTER_RANDOM)
-			extra.first.character = static_cast<SokuLib::Character>(sokuRand(SokuLib::CHARACTER_RANDOM));
-		extra.first.palette = 0;
-		if (extraCharacters[1] == nullptr && extra.second.character == SokuLib::CHARACTER_RANDOM)
-			extra.second.character = static_cast<SokuLib::Character>(sokuRand(SokuLib::CHARACTER_RANDOM));
-		extra.second.palette = extra.first.character == extra.second.character;
-		extra.second.isRight = true;
-		extraCharacterLoadingThread = std::thread{loadExtraCharactersThread};
-	}
-	if (SokuLib::activeWeather == CUSTOMWEATHER_FORGETFUL_WIND) {
-		timeStopLeft = 2;
-		if (This->leftCharacterManager.projectileInvulTimer <= 1)
-			This->leftCharacterManager.projectileInvulTimer = 2;
-		if (This->rightCharacterManager.projectileInvulTimer <= 1)
-			This->rightCharacterManager.projectileInvulTimer = 2;
-	} else
-		timeStopLeft = 0;
-	if (SokuLib::activeWeather == CUSTOMWEATHER_ANTINOMY_OF_COMMON_WEATHER) {
-		if (This->leftCharacterManager.objectBase.position.y == 0)
-			This->leftCharacterManager.objectBase.position.y += 10;
-		if (This->rightCharacterManager.objectBase.position.y == 0)
-			This->rightCharacterManager.objectBase.position.y += 10;
 	}
 	return ret;
 }
@@ -546,29 +616,6 @@ void __declspec(naked) weatherTimer_hook()
 		MOV ECX, 0x8971CC
 		MOV [ECX], AX
 		JMP weatherTimerReturnAddr
-	}
-}
-
-
-void __fastcall handleSwitchWeather(unsigned obj, SokuLib::Weather weatherId)
-{
-	if (weatherId == SokuLib::WEATHER_MONSOON)
-		return switchWeather(obj, SokuLib::WEATHER_TWILIGHT);
-	if (weatherId == SokuLib::WEATHER_TWILIGHT)
-		return switchWeather(obj, SokuLib::WEATHER_CLEAR + 1);
-	if (weatherId == SokuLib::WEATHER_AURORA)
-		return switchWeather(obj, SokuLib::WEATHER_SUNNY);
-	if (weatherId == (CUSTOMWEATHER_SIZE - 1))
-		return switchWeather(obj, SokuLib::WEATHER_AURORA);
-	return switchWeather(obj, weatherId + 1);
-}
-
-void __declspec(naked) handleSwitchWeather_hook()
-{
-	__asm {
-		MOV EDX, EAX
-		ADD ECX, 0x130
-		JMP handleSwitchWeather
 	}
 }
 
@@ -758,28 +805,42 @@ void __declspec(naked) infoEffectUpdateSwitch()
 
 int __fastcall onHudRender(CInfoManager *This)
 {
-	auto &player = *(SokuLib::sceneId == SokuLib::SCENE_BATTLECL ? This->p2State : This->p1State).player;
 	int ret = 0;
 
-	if (player.effectiveWeather == SokuLib::WEATHER_TWILIGHT) {
-		if (viewWindow.tint.r != 255)
-			viewWindow.tint.r += 15;
-		else if (viewWindow.tint.a != 255)
-			viewWindow.tint.a += 5;
-	} else if (viewWindow.tint.a) {
-		viewWindow.tint.a -= 5;
-		viewWindow.tint.r = 0;
-	}
-	viewWindow.setPosition(
-		SokuLib::Vector2f{player.objectBase.position.x, -player.objectBase.position.y}.to<int>() -
-		viewWindow.texture.getSize() / 2 -
-		SokuLib::Vector2i{0, 100}
-	);
-	// We only display the HUD if the view window is not opaque
-	if (viewWindow.tint.a != 255)
+	if (SokuLib::sceneId != SokuLib::SCENE_BATTLEWATCH) {
+		auto &player = *(SokuLib::sceneId == SokuLib::SCENE_BATTLECL ? This->p2State : This->p1State).player;
+
+		viewWindow.setPosition(
+			SokuLib::Vector2f{player.objectBase.position.x, -player.objectBase.position.y}.to<int>() -
+			viewWindow.texture.getSize() / 2 -
+			SokuLib::Vector2i{0, 100}
+		);
+		// We only display the HUD if the view window is not opaque
+		if (viewWindow.tint.a != 255)
+			ret = ogHudRender(This);
+		setRenderMode(1);
+		viewWindow.draw();
+	} else {
+		unsigned char a = viewWindow.tint.a;
+
+		viewWindow.setPosition(
+			SokuLib::Vector2f{This->p1State.player->objectBase.position.x, -This->p1State.player->objectBase.position.y}.to<int>() -
+			viewWindow.texture.getSize() / 2 -
+			SokuLib::Vector2i{0, 100}
+		);
+		setRenderMode(1);
+		viewWindow.tint.a = (a * 2 / 3);
+		viewWindow.draw();
+
+		viewWindow.setPosition(
+			SokuLib::Vector2f{This->p2State.player->objectBase.position.x, -This->p2State.player->objectBase.position.y}.to<int>() -
+			viewWindow.texture.getSize() / 2 -
+			SokuLib::Vector2i{0, 100}
+		);
+		viewWindow.draw();
+		viewWindow.tint.a = a;
 		ret = ogHudRender(This);
-	setRenderMode(1);
-	viewWindow.draw();
+	}
 	return ret;
 }
 
@@ -1029,19 +1090,29 @@ void aocfCheck(SokuLib::CharacterManager *chr, float newY, float oldY)
 		return;
 	}
 	chr->airdashCount = 0;
-	if (newY == MIDDLE || ((newY < MIDDLE) != (oldY < MIDDLE) && oldY != MIDDLE)) {
+	if (50 <= chr->objectBase.action && chr->objectBase.action < 150) {
+		if (chr->damageLimited && chr->objectBase.gravity.y < 0)
+			chr->objectBase.gravity.y *= -1;
+		else if (newY < MIDDLE) {
+			if (chr->objectBase.gravity.y > 0)
+				chr->objectBase.gravity.y *= -1;
+		} else {
+			if (chr->objectBase.gravity.y < 0)
+				chr->objectBase.gravity.y *= -1;
+		}
+	} else if (newY == MIDDLE || ((newY < MIDDLE) != (oldY < MIDDLE) && oldY != MIDDLE)) {
 		chr->objectBase.position.y = MIDDLE;
 		chr->objectBase.speed.y = 0;
 		if (chr->objectBase.action >= SokuLib::ACTION_5A);
-		else if (!chr->keyMap.d && chr->keyMap.verticalAxis < 0) {
+		else if (!chr->keyMap.d && chr->keyMap.verticalAxis < 0)
 			chr->objectBase.speed.y = std::abs(chr->objectBase.gravity.y) * 30;
-		} else if (!chr->keyMap.d && chr->keyMap.verticalAxis > 0) {
+		else if (!chr->keyMap.d && chr->keyMap.verticalAxis > 0)
 			chr->objectBase.speed.y = -std::abs(chr->objectBase.gravity.y) * 30;
-		} else if (chr->keyMap.horizontalAxis > 0) {
+		else if (chr->keyMap.horizontalAxis > 0)
 			chr->objectBase.speed.x = charSpeedLookup[chr->characterIndex * 2] * chr->objectBase.direction;
-		} else if (chr->keyMap.horizontalAxis < 0) {
+		else if (chr->keyMap.horizontalAxis < 0)
 			chr->objectBase.speed.x = charSpeedLookup[chr->characterIndex * 2 + 1] * chr->objectBase.direction;
-		} else
+		else
 			chr->objectBase.speed.x = 0;
 	} else {
 		if (newY < MIDDLE) {
