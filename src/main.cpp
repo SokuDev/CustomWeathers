@@ -88,6 +88,7 @@ enum CustomWeathers {
 	CUSTOMWEATHER_ANTINOMY_OF_COMMON_WEATHER,
 	CUSTOMWEATHER_FORGETFUL_WIND,
 	CUSTOMWEATHER_BLIZZARD,
+	CUSTOMWEATHER_RAGNAROK,
 	CUSTOMWEATHER_SIZE
 };
 
@@ -106,23 +107,27 @@ static int (SokuLib::Select::*ogSelectOnProcess)();
 static int (__thiscall *ogHudRender)(void *);
 
 #define setRenderMode(mode) ((void (__thiscall *)(int, int))0x404B80)(0x896B4C, mode)
+static const auto sokuRand = reinterpret_cast<int (*)(int)>(0x4099F0);
+static const auto switchWeather = (void (__thiscall *)(unsigned, unsigned))0x4388e0;
+const auto ObjectHandler_SpawnBullet = (void (__thiscall *)(void *This, int action, float x, float y, unsigned char layer, unsigned color, float *extraData, int dataSize))0x46EB30;
+const auto FUN_00438ce0 = reinterpret_cast<void (__thiscall *)(void *, unsigned, float, float, unsigned, unsigned)>(0x438CE0);
+
+static CInfoManager *&hud = *(CInfoManager **)0x8985E8;
+static GameDataManager*& dataMgr = *(GameDataManager**)SokuLib::ADDR_GAME_DATA_MANAGER;
 
 static bool needCleaning = false;
 static bool init = false;
 static SokuLib::SWRFont font;
-static const auto sokuRand = reinterpret_cast<int (*)(int)>(0x4099F0);
 static unsigned char characterAlpha[2] = {255, 255};
 static SokuLib::CharacterManager *characterBackup[2] = {nullptr, nullptr};
 static std::shared_ptr<SokuLib::CharacterManager> extraCharacters[2] = {nullptr, nullptr};
 static std::pair<SokuLib::PlayerInfo, SokuLib::PlayerInfo> extra;
 static bool loadingExtraChrs = false;
 static std::thread extraCharacterLoadingThread;
-static CInfoManager *&hud = *(CInfoManager **)0x8985E8;
 static SokuLib::DrawUtils::Sprite viewWindow;
-static const auto switchWeather = (void (__thiscall *)(unsigned, unsigned))0x4388e0;
-static GameDataManager*& dataMgr = *(GameDataManager**)SokuLib::ADDR_GAME_DATA_MANAGER;
 static std::mutex extraChrMutex;
 static std::list<SokuLib::KeyInput> lastInputs[2];
+static unsigned short timeStopLeft = 0;
 
 
 class SavedFrame {
@@ -385,10 +390,28 @@ int selectRandomWeather(bool includeAurora)
 	return result;
 }
 
+void weatherActivate()
+{
+	float extraData[4];
+
+	if (SokuLib::activeWeather == CUSTOMWEATHER_FORGETFUL_WIND) {
+		auto &btl = SokuLib::getBattleMgr();
+
+		timeStopLeft = 2;
+		SokuLib::playSEWaveBuffer(73);
+		extraData[0] = 0;
+		extraData[1] = 0;
+		extraData[2] = 1;
+		ObjectHandler_SpawnBullet(&btl.leftCharacterManager, 1002, 640, 480, 1, 0xFFFFFFFE, extraData, 3);
+		*(int *)((int)btl.leftCharacterManager.objects.list.vector().back() + 0x364) = (((int)&timeStopLeft) - 0x84C);
+	}
+}
+
 void onWeatherActivate()
 {
 	if (SokuLib::activeWeather == CUSTOMWEATHER_SHOOTING_STAR)
 		SokuLib::activeWeather = (SokuLib::Weather)selectRandomWeather(false);
+	weatherActivate();
 }
 
 int __fastcall CBattleManager_OnMatchProcess(SokuLib::BattleManager *This)
@@ -403,6 +426,7 @@ int __fastcall CBattleManager_OnMatchProcess(SokuLib::BattleManager *This)
 	) {
 		SokuLib::playSEWaveBuffer(72);
 		SokuLib::activeWeather = (SokuLib::Weather) selectRandomWeather(false);
+		weatherActivate();
 	}
 	return ret;
 }
@@ -495,6 +519,20 @@ int __fastcall CBattleManager_OnProcess(SokuLib::BattleManager *This)
 		extra.second.palette = extra.first.character == extra.second.character;
 		extra.second.isRight = true;
 		extraCharacterLoadingThread = std::thread{loadExtraCharactersThread};
+	}
+	if (SokuLib::activeWeather == CUSTOMWEATHER_FORGETFUL_WIND) {
+		timeStopLeft = 2;
+		if (This->leftCharacterManager.projectileInvulTimer <= 1)
+			This->leftCharacterManager.projectileInvulTimer = 2;
+		if (This->rightCharacterManager.projectileInvulTimer <= 1)
+			This->rightCharacterManager.projectileInvulTimer = 2;
+	} else
+		timeStopLeft = 0;
+	if (SokuLib::activeWeather == CUSTOMWEATHER_ANTINOMY_OF_COMMON_WEATHER) {
+		if (This->leftCharacterManager.objectBase.position.y == 0)
+			This->leftCharacterManager.objectBase.position.y += 10;
+		if (This->rightCharacterManager.objectBase.position.y == 0)
+			This->rightCharacterManager.objectBase.position.y += 10;
 	}
 	return ret;
 }
@@ -781,8 +819,7 @@ void weatherEffect()
 	__asm MOV [This], ESI
 
 	int i = This == dataMgr->players[1];
-	const auto ObjectHandler_SpawnBullet = (void (__thiscall *)(void *, int, float, float, unsigned char, unsigned, void *, int))0x46EB30;
-	const auto FUN_00438ce0 = reinterpret_cast<void (__thiscall *)(void *, unsigned, float, float, unsigned, unsigned)>(0x438CE0);
+	float extraData[4];
 
 	if (This->swordOfRaptureDebuffTimeLeft > 0)
 		return;
@@ -796,7 +833,10 @@ void weatherEffect()
 			break;
 		This->offset_0x4C0[0xD] = true;
 		SokuLib::weatherCounter /= 2;
-		ObjectHandler_SpawnBullet(This, 0x456, This->objectBase.position.x, 0, This->objectBase.direction, 0xffffffff, &i, 3);
+		extraData[0] = 0;
+		extraData[1] = 0;
+		extraData[2] = 0;
+		ObjectHandler_SpawnBullet(This, 1110, This->objectBase.position.x, 0, This->objectBase.direction, 0xffffffff, extraData, 3);
 		FUN_00438ce0(This, 0x8B, This->objectBase.position.x, This->objectBase.position.y, 1, 1);
 		break;
 	}
@@ -882,6 +922,24 @@ bool __fastcall delayInputs(SokuLib::CharacterManager &chr)
 	return false;
 }
 
+void __declspec(naked) chooseProjectileUpdate()
+{
+	__asm {
+		// Check time stop
+		CMP word ptr [EAX + 0x4A8], 0x0
+		JNZ hasTimeStop
+		CMP word ptr [EAX + 0x52C], CUSTOMWEATHER_FORGETFUL_WIND
+		JZ hasTimeStop
+
+		XOR EAX, EAX
+		RET
+
+	hasTimeStop:
+		TEST EAX, EAX
+		RET
+	}
+}
+
 void __declspec(naked) addInputDelay()
 {
 	__asm {
@@ -900,6 +958,114 @@ void __declspec(naked) addInputDelay()
 	normalProcessing:
 		MOV [ESI + 0x754], EBP
 		JMP normalInputProcessing
+	}
+}
+
+unsigned oldShader;
+unsigned returnValue = 0x4AE3D5;
+
+void __declspec(naked) changeBulletDisplay()
+{
+	__asm {
+		MOV EAX, [ECX + 0x114]
+		MOV [oldShader], EAX
+
+		MOV EAX, [ECX + 0x168]
+		CMP [EAX + 0x52C], CUSTOMWEATHER_FORGETFUL_WIND
+		JNZ ret_
+
+		CMP word ptr [ECX + 0x360], 0x0
+		JNZ ret_
+
+		MOV [ECX + 0x114], 1
+
+	ret_:
+		MOV AL, byte ptr [ESP + 0x4]
+		PUSH ESI
+		JMP [returnValue]
+	}
+}
+
+void __declspec(naked) restoreBulletDisplay()
+{
+	__asm {
+		MOV EAX, [oldShader]
+		MOV [ESI + 0x114], EAX
+		POP ESI
+		RET 0x4
+	}
+}
+
+#define MIDDLE 300
+
+float charSpeedLookup[] = {
+	4.5, -4.5, // CHARACTER_REIMU
+	6,   -5,   // CHARACTER_MARISA
+	6,   -6,   // CHARACTER_SAKUYA
+	6,   -6,   // CHARACTER_ALICE
+	4,   -4,   // CHARACTER_PATCHOULI
+	4,   -4,   // CHARACTER_YOUMU
+	6.5, -6.5, // CHARACTER_REMILIA
+	4,   -4,   // CHARACTER_YUYUKO
+	4.5, -4.5, // CHARACTER_YUKARI
+	5.5, -5.5, // CHARACTER_SUIKA
+	4,   -4,   // CHARACTER_REISEN
+	5.5, -5.5, // CHARACTER_AYA
+	4.5, -4.5, // CHARACTER_KOMACHI
+	2.5, -3,   // CHARACTER_IKU
+	4.5, -4.5, // CHARACTER_TENSHI
+	6,   -5,   // CHARACTER_SANAE
+	6.5, -6.5, // CHARACTER_CIRNO
+	7,   -7,   // CHARACTER_MEILING
+	3,   -3,   // CHARACTER_UTSUHO
+	6,   -7,   // CHARACTER_SUWAKO
+};
+
+void aocfCheck(SokuLib::CharacterManager *chr, float newY, float oldY)
+{
+	if (chr->effectiveWeather != CUSTOMWEATHER_ANTINOMY_OF_COMMON_WEATHER) {
+		if (chr->objectBase.gravity.y < 0)
+			chr->objectBase.gravity.y *= -1;
+		return;
+	}
+	chr->airdashCount = 0;
+	if (newY == MIDDLE || ((newY < MIDDLE) != (oldY < MIDDLE) && oldY != MIDDLE)) {
+		chr->objectBase.position.y = MIDDLE;
+		chr->objectBase.speed.y = 0;
+		if (chr->objectBase.action >= SokuLib::ACTION_5A);
+		else if (!chr->keyMap.d && chr->keyMap.verticalAxis < 0) {
+			chr->objectBase.speed.y = std::abs(chr->objectBase.gravity.y) * 30;
+		} else if (!chr->keyMap.d && chr->keyMap.verticalAxis > 0) {
+			chr->objectBase.speed.y = -std::abs(chr->objectBase.gravity.y) * 30;
+		} else if (chr->keyMap.horizontalAxis > 0) {
+			chr->objectBase.speed.x = charSpeedLookup[chr->characterIndex * 2] * chr->objectBase.direction;
+		} else if (chr->keyMap.horizontalAxis < 0) {
+			chr->objectBase.speed.x = charSpeedLookup[chr->characterIndex * 2 + 1] * chr->objectBase.direction;
+		} else
+			chr->objectBase.speed.x = 0;
+	} else {
+		if (newY < MIDDLE) {
+			if (chr->objectBase.gravity.y > 0)
+				chr->objectBase.gravity.y *= -1;
+		} else {
+			if (chr->objectBase.gravity.y < 0)
+				chr->objectBase.gravity.y *= -1;
+		}
+	}
+}
+
+void __declspec(naked) aocfCheck_hook()
+{
+	__asm {
+		MOV EAX, [ESI + 0xF0]
+		PUSH EAX
+		FSTP dword ptr [ESI + 0xF0]
+		MOV EAX, [ESI + 0xF0]
+		PUSH EAX
+		PUSH ESI
+		CALL aocfCheck
+		ADD ESP, 12
+		RET
 	}
 }
 
@@ -992,7 +1158,19 @@ extern "C" __declspec(dllexport) bool Initialize(HMODULE hMyModule, HMODULE hPar
 	SokuLib::TamperNearJmp(0x47C5AE, onBlockHook);
 	SokuLib::TamperNearJmp(0x488934, checkCalm);
 	SokuLib::TamperNearJmp(0x46C931, addInputDelay);
+	SokuLib::TamperNearCall(0x4AE389, chooseProjectileUpdate);
+	*(char *)0x4AE38E = 0x90;
+	*(char *)0x4AE38F = 0x90;
+	*(char *)0x4AE390 = 0x90;
+	SokuLib::TamperNearJmp(0x4AE3D0, changeBulletDisplay);
+	SokuLib::TamperNearJmp(0x4AE429, restoreBulletDisplay);
+	*(char *)0x4AE40F = 0xEB;
+	*(char *)0x4AE410 = 0x18;
+	*(char *)0x4AE411 = 0x90;
+	*(char *)0x4AE412 = 0x90;
 	new SokuLib::Trampoline(0x4889BE, weatherEffect, 6);
+	SokuLib::TamperNearCall(0x463680, aocfCheck_hook);
+	*(char *)0x463685 = 0x90;
 
 	// Filesystem first patch
 	*(char *)0x40D1FB = 0xEB;
