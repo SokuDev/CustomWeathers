@@ -1260,6 +1260,38 @@
 	</animation>
 
 
+	<animation id="420" index="0" loop="1">
+		<frame image="weatherOrbBlue.bmp" index="0" unknown="0" xtexoffset="0" ytexoffset="0" texwidth="128" texheight="96" xoffset="64" yoffset="43" duration="9999" rendergroup="2">
+			<blend mode="0" color="ffffffff" xscale="100" yscale="100" vertflip="0" horzflip="0" angle="0"/>
+		</frame>
+	</animation>
+	<animation id="421" index="0" loop="1">
+		<frame image="weatherOrbBlue.bmp" index="0" unknown="0" xtexoffset="0" ytexoffset="0" texwidth="128" texheight="96" xoffset="64" yoffset="43" duration="9999" rendergroup="2">
+			<blend mode="1" color="ffffffff" xscale="100" yscale="100" vertflip="0" horzflip="0" angle="0"/>
+		</frame>
+	</animation>
+	<animation id="422" index="0" loop="1">
+		<frame image="weatherAuraBlue.bmp" index="0" unknown="0" xtexoffset="0" ytexoffset="0" texwidth="128" texheight="128" xoffset="64" yoffset="64" duration="9999" rendergroup="2">
+			<blend mode="1" color="ffffffff" xscale="50" yscale="50" vertflip="0" horzflip="0" angle="0"/>
+		</frame>
+	</animation>
+	<animation id="423" index="0" loop="1">
+		<frame image="weatherName_haar.bmp" index="0" unknown="0" xtexoffset="0" ytexoffset="0" texwidth="128" texheight="32" xoffset="64" yoffset="16" duration="9999" rendergroup="2">
+			<blend mode="0" color="ffffffff" xscale="100" yscale="100" vertflip="0" horzflip="0" angle="0"/>
+		</frame>
+	</animation>
+	<animation id="424" index="0" loop="1">
+		<frame image="weatherName_haar.bmp" index="0" unknown="0" xtexoffset="0" ytexoffset="0" texwidth="128" texheight="32" xoffset="64" yoffset="16" duration="9999" rendergroup="2">
+			<blend mode="0" color="ffffffff" xscale="100" yscale="100" vertflip="0" horzflip="0" angle="0"/>
+		</frame>
+	</animation>
+	<animation id="425" index="0" loop="1">
+		<frame image="weatherNameB_haar.bmp" index="0" unknown="0" xtexoffset="0" ytexoffset="0" texwidth="256" texheight="128" xoffset="128" yoffset="64" duration="9999" rendergroup="2">
+			<blend mode="0" color="ffffffff" xscale="100" yscale="100" vertflip="0" horzflip="0" angle="0"/>
+		</frame>
+	</animation>
+
+
 
 
 
