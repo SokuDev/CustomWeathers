@@ -258,38 +258,41 @@ const short weatherTimes[] {
 
 void loadExtraCharactersThread()
 {
-	GameDataManager d;
+	auto size = 0x58;
+	char *memory = new char[size];
+	auto d = (GameDataManager *)memory;
 
-	memcpy(&d, dataMgr, sizeof(d));
+	memcpy(d, dataMgr, size);
 	if (extraCharacters[0] == nullptr) {
 		puts("Loading character 1");
-		((void (__thiscall *)(GameDataManager*, int, SokuLib::PlayerInfo &))0x46da40)(&d, 0, extra.first);
+		((void (__thiscall *)(GameDataManager*, int, SokuLib::PlayerInfo &))0x46da40)(d, 0, extra.first);
 		puts("Init");
-		(*(void (__thiscall **)(SokuLib::CharacterManager *))(*(int *)d.players[0] + 0x44))(d.players[0]);
+		(*(void (__thiscall **)(SokuLib::CharacterManager *))(*(int *)d->players[0] + 0x44))(d->players[0]);
 		extraChrMutex.lock();
 		if (extraCharacters[0] == nullptr) {
 			extra.first.character = SokuLib::CHARACTER_RANDOM;
-			extraCharacters[0] = std::shared_ptr<SokuLib::CharacterManager>{d.players[0], deleteCharacter};
+			extraCharacters[0] = std::shared_ptr<SokuLib::CharacterManager>{d->players[0], deleteCharacter};
 		} else
-			deleteCharacter(d.players[0]);
+			deleteCharacter(d->players[0]);
 		extraChrMutex.unlock();
 		puts("Done");
 	}
 	if (extraCharacters[1] == nullptr) {
 		puts("Loading character 2");
-		((void (__thiscall *)(GameDataManager*, int, SokuLib::PlayerInfo &))0x46da40)(dataMgr, 1, extra.second);
+		((void (__thiscall *)(GameDataManager*, int, SokuLib::PlayerInfo &))0x46da40)(d, 1, extra.second);
 		puts("Init");
-		(*(void (__thiscall **)(SokuLib::CharacterManager *))(*(int *)d.players[1] + 0x44))(d.players[1]);
+		(*(void (__thiscall **)(SokuLib::CharacterManager *))(*(int *)d->players[1] + 0x44))(d->players[1]);
 		extraChrMutex.lock();
 		if (extraCharacters[1] == nullptr) {
 			extra.second.character = SokuLib::CHARACTER_RANDOM;
-			extraCharacters[1] = std::shared_ptr<SokuLib::CharacterManager>(d.players[1], deleteCharacter);
+			extraCharacters[1] = std::shared_ptr<SokuLib::CharacterManager>(d->players[1], deleteCharacter);
 		} else
-			deleteCharacter(d.players[1]);
+			deleteCharacter(d->players[1]);
 		extraChrMutex.unlock();
 		puts("Done");
 	}
 	loadingExtraChrs = false;
+	delete[] memory;
 }
 
 const auto FUN_0043f5c0 = reinterpret_cast<int (*)(int)>(0x43f5C0);
