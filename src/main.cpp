@@ -79,7 +79,7 @@ struct GameDataManager {
 }; // 0x58
 
 // #define DISABLE_VANILLA
-#define FORCE_WEATHER CUSTOMWEATHER_DESERT_MIRAGE
+#define FORCE_WEATHER CUSTOMWEATHER_ANTINOMY_OF_COMMON_WEATHER
 #define WEATHER_TIMER_MULTIPLIER 3
 
 enum CustomWeathers {
@@ -447,7 +447,39 @@ void onWeatherActivate()
 int __fastcall CBattleManager_OnMatchProcess(SokuLib::BattleManager *This)
 {
 	unsigned timer = SokuLib::weatherCounter;
+	auto old1 = This->leftCharacterManager.effectiveWeather;
+	auto old2 = This->rightCharacterManager.effectiveWeather;
 	auto ret = (This->*ogBattleMgrOnMatchProcess)();
+
+	if (This->leftCharacterManager.effectiveWeather == CUSTOMWEATHER_ANTINOMY_OF_COMMON_WEATHER) {
+		if (
+			(This->leftCharacterManager.untech == 0 && 50 <= This->leftCharacterManager.objectBase.action && This->leftCharacterManager.objectBase.action < 150) ||
+			This->leftCharacterManager.objectBase.hp == 0 ||
+			This->leftCharacterManager.damageLimited
+		) {
+			if (This->leftCharacterManager.objectBase.gravity.y < 0)
+				This->leftCharacterManager.objectBase.gravity.y *= -1;
+		} else if (This->leftCharacterManager.objectBase.position.y == 0)
+			This->leftCharacterManager.objectBase.position.y += 10;
+	} else if (old1 == CUSTOMWEATHER_ANTINOMY_OF_COMMON_WEATHER) {
+		if (This->leftCharacterManager.objectBase.gravity.y < 0)
+			This->leftCharacterManager.objectBase.gravity.y *= -1;
+	}
+
+	if (This->rightCharacterManager.effectiveWeather == CUSTOMWEATHER_ANTINOMY_OF_COMMON_WEATHER) {
+		if (
+			(This->rightCharacterManager.untech == 0 && 50 <= This->rightCharacterManager.objectBase.action && This->rightCharacterManager.objectBase.action < 150) ||
+			This->rightCharacterManager.objectBase.hp == 0 ||
+			This->rightCharacterManager.damageLimited
+		) {
+			if (This->rightCharacterManager.objectBase.gravity.y < 0)
+				This->rightCharacterManager.objectBase.gravity.y *= -1;
+		} else if (This->rightCharacterManager.objectBase.position.y == 0)
+			This->rightCharacterManager.objectBase.position.y += 10;
+	} else if (old2 == CUSTOMWEATHER_ANTINOMY_OF_COMMON_WEATHER) {
+		if (This->rightCharacterManager.objectBase.gravity.y < 0)
+			This->rightCharacterManager.objectBase.gravity.y *= -1;
+	}
 
 	if (
 		SokuLib::activeWeather != SokuLib::WEATHER_CLEAR &&
@@ -458,6 +490,7 @@ int __fastcall CBattleManager_OnMatchProcess(SokuLib::BattleManager *This)
 		SokuLib::activeWeather = (SokuLib::Weather) selectRandomWeather(false);
 		weatherActivate();
 	}
+
 	if (SokuLib::activeWeather == CUSTOMWEATHER_FORGETFUL_WIND) {
 		timeStopLeft = 2;
 		if (This->leftCharacterManager.projectileInvulTimer <= 1)
@@ -466,12 +499,6 @@ int __fastcall CBattleManager_OnMatchProcess(SokuLib::BattleManager *This)
 			This->rightCharacterManager.projectileInvulTimer = 2;
 	} else
 		timeStopLeft = 0;
-	if (SokuLib::activeWeather == CUSTOMWEATHER_ANTINOMY_OF_COMMON_WEATHER) {
-		if (This->leftCharacterManager.objectBase.position.y == 0)
-			This->leftCharacterManager.objectBase.position.y += 10;
-		if (This->rightCharacterManager.objectBase.position.y == 0)
-			This->rightCharacterManager.objectBase.position.y += 10;
-	}
 
 	desertMirageSwap(This);
 	for (int i = 0 ; i < 2; i++) {
@@ -494,7 +521,7 @@ int __fastcall CBattleManager_OnMatchProcess(SokuLib::BattleManager *This)
 		}
 	}
 
-	auto &player = (SokuLib::sceneId == SokuLib::SCENE_BATTLECL ? This->rightCharacterManager : This->leftCharacterManager);
+	auto &player = (SokuLib::mainMode == SokuLib::BATTLE_MODE_VSSERVER ? This->rightCharacterManager : This->leftCharacterManager);
 
 	if (player.effectiveWeather == SokuLib::WEATHER_TWILIGHT) {
 		if (viewWindow.tint.r != 255)
@@ -1085,16 +1112,14 @@ float charSpeedLookup[] = {
 
 void aocfCheck(SokuLib::CharacterManager *chr, float newY, float oldY)
 {
-	if (chr->effectiveWeather != CUSTOMWEATHER_ANTINOMY_OF_COMMON_WEATHER) {
-		if (chr->objectBase.gravity.y < 0)
-			chr->objectBase.gravity.y *= -1;
+	if (chr->effectiveWeather != CUSTOMWEATHER_ANTINOMY_OF_COMMON_WEATHER)
 		return;
-	}
 	chr->airdashCount = 0;
 	if (50 <= chr->objectBase.action && chr->objectBase.action < 150) {
-		if (chr->damageLimited && chr->objectBase.gravity.y < 0)
-			chr->objectBase.gravity.y *= -1;
-		else if (newY < MIDDLE) {
+		if (chr->damageLimited || chr->untech == 0 || chr->objectBase.hp == 0) {
+			if (chr->objectBase.gravity.y < 0)
+				chr->objectBase.gravity.y *= -1;
+		} else if (newY < MIDDLE) {
 			if (chr->objectBase.gravity.y > 0)
 				chr->objectBase.gravity.y *= -1;
 		} else {
@@ -1104,7 +1129,7 @@ void aocfCheck(SokuLib::CharacterManager *chr, float newY, float oldY)
 	} else if (newY == MIDDLE || ((newY < MIDDLE) != (oldY < MIDDLE) && oldY != MIDDLE)) {
 		chr->objectBase.position.y = MIDDLE;
 		chr->objectBase.speed.y = 0;
-		if (chr->objectBase.action >= SokuLib::ACTION_5A);
+		if (chr->objectBase.action >= SokuLib::ACTION_FORWARD_DASH);
 		else if (!chr->keyMap.d && chr->keyMap.verticalAxis < 0)
 			chr->objectBase.speed.y = std::abs(chr->objectBase.gravity.y) * 30;
 		else if (!chr->keyMap.d && chr->keyMap.verticalAxis > 0)
