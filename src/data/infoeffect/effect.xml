@@ -1292,6 +1292,166 @@
 	</animation>
 
 
+	<animation id="430" index="0" loop="1">
+		<frame image="weatherOrbYellow.bmp" index="0" unknown="0" xtexoffset="0" ytexoffset="0" texwidth="128" texheight="96" xoffset="64" yoffset="43" duration="9999" rendergroup="2">
+			<blend mode="0" color="ffffffff" xscale="100" yscale="100" vertflip="0" horzflip="0" angle="0"/>
+		</frame>
+	</animation>
+	<animation id="431" index="0" loop="1">
+		<frame image="weatherOrbYellow.bmp" index="0" unknown="0" xtexoffset="0" ytexoffset="0" texwidth="128" texheight="96" xoffset="64" yoffset="43" duration="9999" rendergroup="2">
+			<blend mode="1" color="ffffffff" xscale="100" yscale="100" vertflip="0" horzflip="0" angle="0"/>
+		</frame>
+	</animation>
+	<animation id="432" index="0" loop="1">
+		<frame image="weatherAuraYellow.bmp" index="0" unknown="0" xtexoffset="0" ytexoffset="0" texwidth="128" texheight="128" xoffset="64" yoffset="64" duration="9999" rendergroup="2">
+			<blend mode="1" color="ffffffff" xscale="50" yscale="50" vertflip="0" horzflip="0" angle="0"/>
+		</frame>
+	</animation>
+	<animation id="433" index="0" loop="1">
+		<frame image="weatherName_mpm.bmp" index="0" unknown="0" xtexoffset="0" ytexoffset="0" texwidth="128" texheight="32" xoffset="64" yoffset="16" duration="9999" rendergroup="2">
+			<blend mode="0" color="ffffffff" xscale="100" yscale="100" vertflip="0" horzflip="0" angle="0"/>
+		</frame>
+	</animation>
+	<animation id="434" index="0" loop="1">
+		<frame image="weatherName_mpm.bmp" index="0" unknown="0" xtexoffset="0" ytexoffset="0" texwidth="128" texheight="32" xoffset="64" yoffset="16" duration="9999" rendergroup="2">
+			<blend mode="0" color="ffffffff" xscale="100" yscale="100" vertflip="0" horzflip="0" angle="0"/>
+		</frame>
+	</animation>
+	<animation id="435" index="0" loop="1">
+		<frame image="weatherNameB_mpm.bmp" index="0" unknown="0" xtexoffset="0" ytexoffset="0" texwidth="256" texheight="128" xoffset="128" yoffset="64" duration="9999" rendergroup="2">
+			<blend mode="0" color="ffffffff" xscale="100" yscale="100" vertflip="0" horzflip="0" angle="0"/>
+		</frame>
+	</animation>
+
+
+	<animation id="440" index="0" loop="1">
+		<frame image="weatherOrbBlue.bmp" index="0" unknown="0" xtexoffset="0" ytexoffset="0" texwidth="128" texheight="96" xoffset="64" yoffset="43" duration="9999" rendergroup="2">
+			<blend mode="0" color="ffffffff" xscale="100" yscale="100" vertflip="0" horzflip="0" angle="0"/>
+		</frame>
+	</animation>
+	<animation id="441" index="0" loop="1">
+		<frame image="weatherOrbBlue.bmp" index="0" unknown="0" xtexoffset="0" ytexoffset="0" texwidth="128" texheight="96" xoffset="64" yoffset="43" duration="9999" rendergroup="2">
+			<blend mode="1" color="ffffffff" xscale="100" yscale="100" vertflip="0" horzflip="0" angle="0"/>
+		</frame>
+	</animation>
+	<animation id="442" index="0" loop="1">
+		<frame image="weatherAuraBlue.bmp" index="0" unknown="0" xtexoffset="0" ytexoffset="0" texwidth="128" texheight="128" xoffset="64" yoffset="64" duration="9999" rendergroup="2">
+			<blend mode="1" color="ffffffff" xscale="50" yscale="50" vertflip="0" horzflip="0" angle="0"/>
+		</frame>
+	</animation>
+	<animation id="443" index="0" loop="1">
+		<frame image="weatherName_waterHaze.bmp" index="0" unknown="0" xtexoffset="0" ytexoffset="0" texwidth="128" texheight="32" xoffset="64" yoffset="16" duration="9999" rendergroup="2">
+			<blend mode="0" color="ffffffff" xscale="100" yscale="100" vertflip="0" horzflip="0" angle="0"/>
+		</frame>
+	</animation>
+	<animation id="444" index="0" loop="1">
+		<frame image="weatherName_waterHaze.bmp" index="0" unknown="0" xtexoffset="0" ytexoffset="0" texwidth="128" texheight="32" xoffset="64" yoffset="16" duration="9999" rendergroup="2">
+			<blend mode="0" color="ffffffff" xscale="100" yscale="100" vertflip="0" horzflip="0" angle="0"/>
+		</frame>
+	</animation>
+	<animation id="445" index="0" loop="1">
+		<frame image="weatherNameB_waterHaze.bmp" index="0" unknown="0" xtexoffset="0" ytexoffset="0" texwidth="256" texheight="128" xoffset="128" yoffset="64" duration="9999" rendergroup="2">
+			<blend mode="0" color="ffffffff" xscale="100" yscale="100" vertflip="0" horzflip="0" angle="0"/>
+		</frame>
+	</animation>
+
+
+	<animation id="450" index="0" loop="1">
+		<frame image="weatherOrbWhite.bmp" index="0" unknown="0" xtexoffset="0" ytexoffset="0" texwidth="128" texheight="96" xoffset="64" yoffset="43" duration="9999" rendergroup="2">
+			<blend mode="0" color="ffffffff" xscale="100" yscale="100" vertflip="0" horzflip="0" angle="0"/>
+		</frame>
+	</animation>
+	<animation id="451" index="0" loop="1">
+		<frame image="weatherOrbWhite.bmp" index="0" unknown="0" xtexoffset="0" ytexoffset="0" texwidth="128" texheight="96" xoffset="64" yoffset="43" duration="9999" rendergroup="2">
+			<blend mode="1" color="ffffffff" xscale="100" yscale="100" vertflip="0" horzflip="0" angle="0"/>
+		</frame>
+	</animation>
+	<animation id="452" index="0" loop="1">
+		<frame image="weatherAuraWhite.bmp" index="0" unknown="0" xtexoffset="0" ytexoffset="0" texwidth="128" texheight="128" xoffset="64" yoffset="64" duration="9999" rendergroup="2">
+			<blend mode="1" color="ffffffff" xscale="50" yscale="50" vertflip="0" horzflip="0" angle="0"/>
+		</frame>
+	</animation>
+	<animation id="453" index="0" loop="1">
+		<frame image="weatherName_reverseField.bmp" index="0" unknown="0" xtexoffset="0" ytexoffset="0" texwidth="128" texheight="32" xoffset="64" yoffset="16" duration="9999" rendergroup="2">
+			<blend mode="0" color="ffffffff" xscale="100" yscale="100" vertflip="0" horzflip="0" angle="0"/>
+		</frame>
+	</animation>
+	<animation id="454" index="0" loop="1">
+		<frame image="weatherName_reverseField.bmp" index="0" unknown="0" xtexoffset="0" ytexoffset="0" texwidth="128" texheight="32" xoffset="64" yoffset="16" duration="9999" rendergroup="2">
+			<blend mode="0" color="ffffffff" xscale="100" yscale="100" vertflip="0" horzflip="0" angle="0"/>
+		</frame>
+	</animation>
+	<animation id="455" index="0" loop="1">
+		<frame image="weatherNameB_reverseField.bmp" index="0" unknown="0" xtexoffset="0" ytexoffset="0" texwidth="256" texheight="128" xoffset="128" yoffset="64" duration="9999" rendergroup="2">
+			<blend mode="0" color="ffffffff" xscale="100" yscale="100" vertflip="0" horzflip="0" angle="0"/>
+		</frame>
+	</animation>
+
+
+	<animation id="460" index="0" loop="1">
+		<frame image="weatherOrbBlue.bmp" index="0" unknown="0" xtexoffset="0" ytexoffset="0" texwidth="128" texheight="96" xoffset="64" yoffset="43" duration="9999" rendergroup="2">
+			<blend mode="0" color="ffffffff" xscale="100" yscale="100" vertflip="0" horzflip="0" angle="0"/>
+		</frame>
+	</animation>
+	<animation id="461" index="0" loop="1">
+		<frame image="weatherOrbBlue.bmp" index="0" unknown="0" xtexoffset="0" ytexoffset="0" texwidth="128" texheight="96" xoffset="64" yoffset="43" duration="9999" rendergroup="2">
+			<blend mode="1" color="ffffffff" xscale="100" yscale="100" vertflip="0" horzflip="0" angle="0"/>
+		</frame>
+	</animation>
+	<animation id="462" index="0" loop="1">
+		<frame image="weatherAuraBlue.bmp" index="0" unknown="0" xtexoffset="0" ytexoffset="0" texwidth="128" texheight="128" xoffset="64" yoffset="64" duration="9999" rendergroup="2">
+			<blend mode="1" color="ffffffff" xscale="50" yscale="50" vertflip="0" horzflip="0" angle="0"/>
+		</frame>
+	</animation>
+	<animation id="463" index="0" loop="1">
+		<frame image="weatherName_illusionMist.bmp" index="0" unknown="0" xtexoffset="0" ytexoffset="0" texwidth="128" texheight="32" xoffset="64" yoffset="16" duration="9999" rendergroup="2">
+			<blend mode="0" color="ffffffff" xscale="100" yscale="100" vertflip="0" horzflip="0" angle="0"/>
+		</frame>
+	</animation>
+	<animation id="464" index="0" loop="1">
+		<frame image="weatherName_illusionMist.bmp" index="0" unknown="0" xtexoffset="0" ytexoffset="0" texwidth="128" texheight="32" xoffset="64" yoffset="16" duration="9999" rendergroup="2">
+			<blend mode="0" color="ffffffff" xscale="100" yscale="100" vertflip="0" horzflip="0" angle="0"/>
+		</frame>
+	</animation>
+	<animation id="465" index="0" loop="1">
+		<frame image="weatherNameB_illusionMist.bmp" index="0" unknown="0" xtexoffset="0" ytexoffset="0" texwidth="256" texheight="128" xoffset="128" yoffset="64" duration="9999" rendergroup="2">
+			<blend mode="0" color="ffffffff" xscale="100" yscale="100" vertflip="0" horzflip="0" angle="0"/>
+		</frame>
+	</animation>
+
+
+	<animation id="470" index="0" loop="1">
+		<frame image="weatherOrbBlue.bmp" index="0" unknown="0" xtexoffset="0" ytexoffset="0" texwidth="128" texheight="96" xoffset="64" yoffset="43" duration="9999" rendergroup="2">
+			<blend mode="0" color="ffffffff" xscale="100" yscale="100" vertflip="0" horzflip="0" angle="0"/>
+		</frame>
+	</animation>
+	<animation id="471" index="0" loop="1">
+		<frame image="weatherOrbBlue.bmp" index="0" unknown="0" xtexoffset="0" ytexoffset="0" texwidth="128" texheight="96" xoffset="64" yoffset="43" duration="9999" rendergroup="2">
+			<blend mode="1" color="ffffffff" xscale="100" yscale="100" vertflip="0" horzflip="0" angle="0"/>
+		</frame>
+	</animation>
+	<animation id="472" index="0" loop="1">
+		<frame image="weatherAuraBlue.bmp" index="0" unknown="0" xtexoffset="0" ytexoffset="0" texwidth="128" texheight="128" xoffset="64" yoffset="64" duration="9999" rendergroup="2">
+			<blend mode="1" color="ffffffff" xscale="50" yscale="50" vertflip="0" horzflip="0" angle="0"/>
+		</frame>
+	</animation>
+	<animation id="473" index="0" loop="1">
+		<frame image="weatherName_eternalNight.bmp" index="0" unknown="0" xtexoffset="0" ytexoffset="0" texwidth="128" texheight="32" xoffset="64" yoffset="16" duration="9999" rendergroup="2">
+			<blend mode="0" color="ffffffff" xscale="100" yscale="100" vertflip="0" horzflip="0" angle="0"/>
+		</frame>
+	</animation>
+	<animation id="474" index="0" loop="1">
+		<frame image="weatherName_eternalNight.bmp" index="0" unknown="0" xtexoffset="0" ytexoffset="0" texwidth="128" texheight="32" xoffset="64" yoffset="16" duration="9999" rendergroup="2">
+			<blend mode="0" color="ffffffff" xscale="100" yscale="100" vertflip="0" horzflip="0" angle="0"/>
+		</frame>
+	</animation>
+	<animation id="475" index="0" loop="1">
+		<frame image="weatherNameB_eternalNight.bmp" index="0" unknown="0" xtexoffset="0" ytexoffset="0" texwidth="256" texheight="128" xoffset="128" yoffset="64" duration="9999" rendergroup="2">
+			<blend mode="0" color="ffffffff" xscale="100" yscale="100" vertflip="0" horzflip="0" angle="0"/>
+		</frame>
+	</animation>
+
+
 
 
 

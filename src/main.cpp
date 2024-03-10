@@ -78,9 +78,10 @@ struct GameDataManager {
 	SokuLib::List<SokuLib::CharacterManager*> destroyQueue;
 }; // 0x58
 
-// #define DISABLE_VANILLA
-#define FORCE_WEATHER CUSTOMWEATHER_ANTINOMY_OF_COMMON_WEATHER
+#define DISABLE_VANILLA
+#define FORCE_WEATHER CUSTOMWEATHER_MISSING_PURPLE_MIST
 #define WEATHER_TIMER_MULTIPLIER 3
+#define MISSING_PURPLE_MIST_SMOOTHING_TIME 30
 
 enum CustomWeathers {
 	CUSTOMWEATHER_ANGEL_HALO = SokuLib::WEATHER_CLEAR + 1,
@@ -93,6 +94,11 @@ enum CustomWeathers {
 	CUSTOMWEATHER_BLIZZARD,
 	CUSTOMWEATHER_RAGNAROK,
 	CUSTOMWEATHER_HAAR,
+	CUSTOMWEATHER_MISSING_PURPLE_MIST,
+	CUSTOMWEATHER_WATER_HAZE,
+	CUSTOMWEATHER_REVERSE_FIELD,
+	CUSTOMWEATHER_ILLUSION_MIST,
+	CUSTOMWEATHER_ETERNAL_NIGHT,
 	CUSTOMWEATHER_SIZE
 };
 
@@ -105,6 +111,7 @@ void deleteCharacter(SokuLib::CharacterManager *p)
 static SokuLib::BattleManager *(SokuLib::BattleManager::*ogBattleMgrDestructor)(char unknown);
 static int (SokuLib::BattleManager::*ogBattleMgrOnMatchProcess)();
 static int (SokuLib::BattleManager::*ogBattleMgrOnProcess)();
+static void (SokuLib::BattleManager::*ogBattleMgrOnRender)();
 static int (SokuLib::SelectClient::*ogSelectClientOnProcess)();
 static int (SokuLib::SelectServer::*ogSelectServerOnProcess)();
 static int (SokuLib::Select::*ogSelectOnProcess)();
@@ -123,10 +130,11 @@ static bool needCleaning = false;
 static bool init = false;
 static SokuLib::SWRFont font;
 static unsigned char characterAlpha[2] = {255, 255};
+static unsigned char characterSizeCtr[2] = {0, 0};
 static unsigned char characterSkills[2][16] = {{0}, {0}};
 static SokuLib::CharacterManager *characterBackup[2] = {nullptr, nullptr};
 static SokuLib::CharacterManager *extraCharacters[2] = {nullptr, nullptr};
-static std::pair<SokuLib::PlayerInfo, SokuLib::PlayerInfo> extra;
+static std::pair<SokuLib::PlayerInfo, SokuLib::PlayerInfo> *extra = nullptr;
 static SokuLib::DrawUtils::Sprite viewWindow;
 static std::list<SokuLib::KeyInput> lastInputs[2];
 static unsigned short timeStopLeft = 0;
@@ -138,8 +146,8 @@ private:
 	bool desertMirage_swapped2;
 	unsigned char impassableSmog_characterAlpha1;
 	unsigned char impassableSmog_characterAlpha2;
-	unsigned char desertMirage_chr1;
-	unsigned char desertMirage_chr2;
+	unsigned char missingPurpleMist_characterScale1;
+	unsigned char missingPurpleMist_characterScale2;
 	unsigned char twilight_alpha;
 	unsigned char twilight_red;
 	unsigned char haar_characterSkills1[16];
@@ -152,10 +160,10 @@ public:
 	{
 		this->desertMirage_swapped1 = characterBackup[0] != nullptr;
 		this->desertMirage_swapped2 = characterBackup[1] != nullptr;
-		this->desertMirage_chr1 = extra.first.character;
-		this->desertMirage_chr2 = extra.second.character;
 		this->impassableSmog_characterAlpha1 = characterAlpha[0];
 		this->impassableSmog_characterAlpha2 = characterAlpha[1];
+		this->missingPurpleMist_characterScale1 = characterSizeCtr[0];
+		this->missingPurpleMist_characterScale2 = characterSizeCtr[1];
 		memcpy(this->haar_characterSkills1, characterSkills[0], sizeof(this->haar_characterSkills1));
 		memcpy(this->haar_characterSkills2, characterSkills[1], sizeof(this->haar_characterSkills2));
 		this->twilight_alpha = viewWindow.tint.a;
@@ -203,10 +211,10 @@ public:
 		lastInputs[1] = this->blizzard_lastInputs2;
 		characterAlpha[0] = this->impassableSmog_characterAlpha1;
 		characterAlpha[1] = this->impassableSmog_characterAlpha2;
+		characterSizeCtr[0] = this->missingPurpleMist_characterScale1;
+		characterSizeCtr[1] = this->missingPurpleMist_characterScale2;
 		viewWindow.tint.a = this->twilight_alpha;
 		viewWindow.tint.r = this->twilight_red;
-		extra.first.character = (SokuLib::Character)this->desertMirage_chr1;
-		extra.second.character = (SokuLib::Character)this->desertMirage_chr2;
 	}
 };
 
@@ -246,6 +254,11 @@ const short weatherTimes[] {
 	999, // CUSTOMWEATHER_BLIZZARD
 	999, // CUSTOMWEATHER_RAGNAROK
 	999, // CUSTOMWEATHER_HAAR
+	999, // CUSTOMWEATHER_MISSING_PURPLE_MIST
+	10/* 999 */, // CUSTOMWEATHER_WATER_HAZE
+	10/* 999 */, // CUSTOMWEATHER_REVERSE_FIELD
+	10/* 999 */, // CUSTOMWEATHER_ILLUSION_MIST
+	10/* 100 */, // CUSTOMWEATHER_ETERNAL_NIGHT
 };
 
 void loadExtraCharacters()
@@ -253,19 +266,21 @@ void loadExtraCharacters()
 	auto o1 = dataMgr->players[0];
 	auto o2 = dataMgr->players[1];
 
-	extra.first.character = static_cast<SokuLib::Character>(sokuRand(SokuLib::CHARACTER_RANDOM));
-	extra.first.palette = 0;
-	extra.second.character = static_cast<SokuLib::Character>(sokuRand(SokuLib::CHARACTER_RANDOM));
-	extra.second.palette = extra.first.character == extra.second.character;
-	extra.second.isRight = true;
+	if (!extra)
+		extra = new std::pair<SokuLib::PlayerInfo, SokuLib::PlayerInfo>();
+	extra->first.character = static_cast<SokuLib::Character>(sokuRand(SokuLib::CHARACTER_RANDOM));
+	extra->first.palette = 0;
+	extra->second.character = static_cast<SokuLib::Character>(sokuRand(SokuLib::CHARACTER_RANDOM));
+	extra->second.palette = extra->first.character == extra->second.character;
+	extra->second.isRight = true;
 
 	puts("Loading character 1");
-	((void (__thiscall *)(GameDataManager*, int, SokuLib::PlayerInfo &))0x46da40)(dataMgr, 0, extra.first);
+	((void (__thiscall *)(GameDataManager*, int, SokuLib::PlayerInfo &))0x46da40)(dataMgr, 0, extra->first);
 	puts("Init");
 	(*(void (__thiscall **)(SokuLib::CharacterManager *))(*(int *)dataMgr->players[0] + 0x44))(dataMgr->players[0]);
 	extraCharacters[0] = dataMgr->players[0];
 	puts("Loading character 2");
-	((void (__thiscall *)(GameDataManager*, int, SokuLib::PlayerInfo &))0x46da40)(dataMgr, 1, extra.second);
+	((void (__thiscall *)(GameDataManager*, int, SokuLib::PlayerInfo &))0x46da40)(dataMgr, 1, extra->second);
 	puts("Init");
 	(*(void (__thiscall **)(SokuLib::CharacterManager *))(*(int *)dataMgr->players[1] + 0x44))(dataMgr->players[1]);
 	extraCharacters[1] = dataMgr->players[1];
@@ -503,8 +518,12 @@ int __fastcall CBattleManager_OnMatchProcess(SokuLib::BattleManager *This)
 	desertMirageSwap(This);
 	for (int i = 0 ; i < 2; i++) {
 		auto chr = dataMgr->players[i];
+		auto weather = chr->effectiveWeather;
 
-		if (chr->swordOfRaptureDebuffTimeLeft || chr->effectiveWeather != CUSTOMWEATHER_IMPASSABLE_FOG) {
+		if (chr->swordOfRaptureDebuffTimeLeft)
+			weather = SokuLib::WEATHER_CLEAR;
+
+		if (weather != CUSTOMWEATHER_IMPASSABLE_FOG) {
 			if (characterAlpha[i] != 255) {
 				if (characterAlpha[i] > 250)
 					characterAlpha[i] = 255;
@@ -544,10 +563,12 @@ void cleanup()
 	characterBackup[1] = nullptr;
 	extraCharacters[0] = nullptr;
 	extraCharacters[1] = nullptr;
-	extra.first.character = SokuLib::CHARACTER_RANDOM;
-	extra.second.character = SokuLib::CHARACTER_RANDOM;
+	extra->first.character = SokuLib::CHARACTER_RANDOM;
+	extra->second.character = SokuLib::CHARACTER_RANDOM;
 	characterAlpha[0] = 255;
 	characterAlpha[1] = 255;
+	characterSizeCtr[0] = 0;
+	characterSizeCtr[1] = 0;
 	lastInputs[0].clear();
 	lastInputs[1].clear();
 	memset(characterSkills, 0, sizeof(characterSkills));
@@ -598,6 +619,27 @@ void checkCiF()
 	local_32c.ExceptionCode = STATUS_ASSERTION_FAILURE;
 	UnhandledExceptionFilter(&local_2dc);
 	ExitProcess(STATUS_ASSERTION_FAILURE);
+}
+
+void __fastcall CBattleManager_OnRender(SokuLib::BattleManager *This)
+{
+	auto players = (SokuLib::CharacterManager **)((int)This + 0xC);
+	std::map<SokuLib::ObjectManager *, SokuLib::Vector2f> scale;
+
+	for (int i = 0; i < 2; i++) {
+		scale[&players[i]->objectBase] = players[i]->objectBase.renderInfos.scale;
+		players[i]->objectBase.renderInfos.scale *= (1 + (float)characterSizeCtr[i] / MISSING_PURPLE_MIST_SMOOTHING_TIME);
+		for (auto obj : players[i]->objects.list.vector()) {
+			scale[obj] = obj->renderInfos.scale;
+			obj->renderInfos.scale *= (1 + (float) characterSizeCtr[i] / MISSING_PURPLE_MIST_SMOOTHING_TIME);
+		}
+	}
+	(This->*ogBattleMgrOnRender)();
+	for (int i = 0; i < 2; i++) {
+		players[i]->objectBase.renderInfos.scale = scale[&players[i]->objectBase];
+		for (auto obj : players[i]->objects.list.vector())
+			obj->renderInfos.scale = scale[obj];
+	}
 }
 
 int __fastcall CBattleManager_OnProcess(SokuLib::BattleManager *This)
@@ -880,15 +922,45 @@ void freeFrame(unsigned id)
 	frames.erase(frames.find(id));
 }
 
-void weatherEffect()
+void weatherEffectReset()
+{
+	SokuLib::CharacterManager *This;
+	__asm MOV [This], ESI
+
+	int i = This == dataMgr->players[1];
+	auto weather = This->effectiveWeather;
+
+	if (This->swordOfRaptureDebuffTimeLeft > 0)
+		weather = SokuLib::WEATHER_CLEAR;
+
+	if (weather != CUSTOMWEATHER_HAAR) {
+		if (characterSkills[i][0]) {
+			characterSkills[i][0] = 0;
+			memcpy(This->skillMap, &characterSkills[i][1], 15);
+		}
+	}
+
+	if (weather != CUSTOMWEATHER_MISSING_PURPLE_MIST) {
+		if (characterSizeCtr[i] <= 0)
+			characterSizeCtr[i] = 0;
+		else
+			characterSizeCtr[i]--;
+	}
+}
+
+void weatherEffectSet()
 {
 	SokuLib::CharacterManager *This;
 	__asm MOV [This], ESI
 
 	int i = This == dataMgr->players[1];
 	float extraData[4];
+	auto weather = This->effectiveWeather;
 
-	if (This->effectiveWeather == CUSTOMWEATHER_HAAR) {
+	if (This->swordOfRaptureDebuffTimeLeft > 0)
+		weather = SokuLib::WEATHER_CLEAR;
+
+	if (weather == CUSTOMWEATHER_HAAR) {
 		if (!characterSkills[i][0]) {
 			characterSkills[i][0] = 1;
 			memcpy(&characterSkills[i][1], This->skillMap, 15);
@@ -897,22 +969,36 @@ void weatherEffect()
 
 			memset(This->skillMap, 0xFF, 15);
 			for (int i = 0; i < nbSkills; i++) {
-				auto s = sokuRand(2);
-				auto l = sokuRand(3 + (s != 0));
+				auto s = sokuRand(3);
+				auto l = sokuRand(4 + (s != 0));
 
 				This->skillMap[i + nbSkills * s].notUsed = false;
 				This->skillMap[i + nbSkills * s].level = l + (i != 0);
 			}
 		}
-	} else {
-		if (characterSkills[i][0]) {
-			characterSkills[i][0] = 0;
-			memcpy(This->skillMap, &characterSkills[i][1], 15);
-		}
 	}
-	if (This->swordOfRaptureDebuffTimeLeft > 0)
-		return;
-	switch (This->effectiveWeather) {
+
+	if (weather == CUSTOMWEATHER_MISSING_PURPLE_MIST) {
+		if (characterSizeCtr[i] >= MISSING_PURPLE_MIST_SMOOTHING_TIME)
+			characterSizeCtr[i] = MISSING_PURPLE_MIST_SMOOTHING_TIME;
+		else
+			characterSizeCtr[i]++;
+		This->noSuperArmor = 0;
+		*(short *)&This->offset_0x4AA = 1;
+	}
+	/*if (
+		(characterSizeCtr[i] && characterSizeCtr[i] != MISSING_PURPLE_MIST_SMOOTHING_TIME) ||
+		(characterSizeCtr[i] == MISSING_PURPLE_MIST_SMOOTHING_TIME && characterUpdateCtr % 4 == 0)
+	) {
+		This->objectBase.hitstop++;
+		This->objectBase.hitstop += This->objectBase.hitstop == 1;
+		for (auto obj : This->objects.list.vector()) {
+			obj->hitstop++;
+			obj->hitstop += obj->hitstop == 1;
+		}
+	}*/
+
+	switch (weather) {
 	case CUSTOMWEATHER_ANGEL_HALO:
 		if (This->offset_0x4C0[0xD]) {
 			This->dropInvulTimeLeft = 2;
@@ -921,13 +1007,57 @@ void weatherEffect()
 		if (!(50 <= This->objectBase.opponent->objectBase.action && This->objectBase.opponent->objectBase.action < 150))
 			break;
 		This->offset_0x4C0[0xD] = true;
-		SokuLib::weatherCounter /= 2;
+		if (SokuLib::displayedWeather != CUSTOMWEATHER_SHOOTING_STAR)
+			SokuLib::weatherCounter /= 2;
 		extraData[0] = 0;
 		extraData[1] = 0;
 		extraData[2] = 0;
 		ObjectHandler_SpawnBullet(This, 1110, This->objectBase.position.x, 0, This->objectBase.direction, 0xffffffff, extraData, 3);
 		FUN_00438ce0(This, 0x8B, This->objectBase.position.x, This->objectBase.position.y, 1, 1);
 		break;
+	}
+}
+
+void modifyBoxes()
+{
+	SokuLib::ObjectManager *This;
+	__asm MOV [This], ESI;
+
+	auto &battleMgr = SokuLib::getBattleMgr();
+	auto index = This->owner == &battleMgr.leftCharacterManager;
+	auto scale = (1 + (float) characterSizeCtr[index] / MISSING_PURPLE_MIST_SMOOTHING_TIME);
+
+	for (int i = 0; i < This->hurtBoxCount; i++) {
+		auto &box = This->hurtBoxes[i];
+
+		box.left  = (box.left   - This->position.x) * scale + This->position.x;
+		box.right = (box.right  - This->position.x) * scale + This->position.x;
+		box.top   = (box.top    + This->position.y) * scale - This->position.y;
+		box.bottom= (box.bottom + This->position.y) * scale - This->position.y;
+		if (This->hurtBoxesRotation[i]) {
+			auto &box = *This->hurtBoxesRotation[i];
+
+			box.pt1.x *= scale;
+			box.pt2.x *= scale;
+			box.pt1.y *= scale;
+			box.pt2.y *= scale;
+		}
+	}
+	for (int i = 0; i < This->hitBoxCount; i++) {
+		auto &box = This->hitBoxes[i];
+
+		box.left  = (box.left   - This->position.x) * scale + This->position.x;
+		box.right = (box.right  - This->position.x) * scale + This->position.x;
+		box.top   = (box.top    + This->position.y) * scale - This->position.y;
+		box.bottom= (box.bottom + This->position.y) * scale - This->position.y;
+		if (This->hitBoxesRotation[i]) {
+			auto &box = *This->hitBoxesRotation[i];
+
+			box.pt1.x *= scale;
+			box.pt2.x *= scale;
+			box.pt1.y *= scale;
+			box.pt2.y *= scale;
+		}
 	}
 }
 
@@ -1169,6 +1299,14 @@ void __declspec(naked) aocfCheck_hook()
 void __fastcall ObjectHandler_SpawnBullet_hook(SokuLib::CharacterManager *This, int, int action, float x, float y, int dir, unsigned color, float *extraData, unsigned extraDataSize)
 {
 	auto fct = ((void (__thiscall **)(SokuLib::ObjListManager &, int, SokuLib::CharacterManager *, int, float, float, int, unsigned, float *, unsigned))*(int *)This->objects.offset_0x00)[1];
+	auto &battleMgr = SokuLib::getBattleMgr();
+	auto i = This == &battleMgr.leftCharacterManager;
+	auto scale = (1 + (float) characterSizeCtr[i] / MISSING_PURPLE_MIST_SMOOTHING_TIME);
+
+	printf("%i %f %f -> ", action, x, y);
+	x = (x - This->objectBase.position.x) * scale + This->objectBase.position.x;
+	y = (y - This->objectBase.position.y) * scale + This->objectBase.position.y;
+	printf("%f %f\n", x, y);
 
 	// Normal case, weather isn't activated
 	if (This->effectiveWeather != CUSTOMWEATHER_RAGNAROK)
@@ -1180,8 +1318,8 @@ void __fastcall ObjectHandler_SpawnBullet_hook(SokuLib::CharacterManager *This, 
 	// If it's set to 0 then the bullet probably doesn't support rotation,
 	// so we just spawn them on top of each other
 	if (extraDataSize < 3 || extraData[1] == 0) {
-		fct(This->objects, 0, This, action, x, y - 15, dir, color, extraData, extraDataSize);
-		fct(This->objects, 0, This, action, x, y + 15, dir, color, extraData, extraDataSize);
+		fct(This->objects, 0, This, action, x, y - 15 * scale, dir, color, extraData, extraDataSize);
+		fct(This->objects, 0, This, action, x, y + 15 * scale, dir, color, extraData, extraDataSize);
 	} else {
 		// -10°
 		extraData[0] -= 10;
@@ -1247,15 +1385,13 @@ extern "C" __declspec(dllexport) bool Initialize(HMODULE hMyModule, HMODULE hPar
 	freopen_s(&_, "CONOUT$", "w", stdout);
 	freopen_s(&_, "CONOUT$", "w", stderr);
 #endif
-
-	extra.first.character = SokuLib::CHARACTER_RANDOM;
-	extra.second.character = SokuLib::CHARACTER_RANDOM;
 	VirtualProtect((PVOID)RDATA_SECTION_OFFSET, RDATA_SECTION_SIZE, PAGE_EXECUTE_WRITECOPY, &old);
 	ogBattleMgrDestructor = SokuLib::TamperDword(&SokuLib::VTable_BattleManager.destructor, CBattleManager_Destructor);
 	ogSelectOnProcess = SokuLib::TamperDword(&SokuLib::VTable_Select.onProcess, CSelect_OnProcess);
 	ogSelectClientOnProcess = SokuLib::TamperDword(&SokuLib::VTable_SelectClient.onProcess, CSelectCL_OnProcess);
 	ogSelectServerOnProcess = SokuLib::TamperDword(&SokuLib::VTable_SelectServer.onProcess, CSelectSV_OnProcess);
 	ogBattleMgrOnProcess = SokuLib::TamperDword(&SokuLib::VTable_BattleManager.onProcess, CBattleManager_OnProcess);
+	ogBattleMgrOnRender = SokuLib::TamperDword(&SokuLib::VTable_BattleManager.onRender, CBattleManager_OnRender);
 	ogBattleMgrOnMatchProcess = SokuLib::TamperDword(&SokuLib::VTable_BattleManager.maybeOnProgress, CBattleManager_OnMatchProcess);
 	ogHudRender = (int (__thiscall *)(void *))SokuLib::TamperDword(0x85b544, onHudRender);
 	VirtualProtect((PVOID)RDATA_SECTION_OFFSET, RDATA_SECTION_SIZE, old, &old);
@@ -1291,10 +1427,12 @@ extern "C" __declspec(dllexport) bool Initialize(HMODULE hMyModule, HMODULE hPar
 	*(char *)0x4AE410 = 0x18;
 	*(char *)0x4AE411 = 0x90;
 	*(char *)0x4AE412 = 0x90;
-	new SokuLib::Trampoline(0x4889BE, weatherEffect, 6);
+	new SokuLib::Trampoline(0x4889BE, weatherEffectReset, 6);
+	new SokuLib::Trampoline(0x488ABF, weatherEffectSet, 6);
 	SokuLib::TamperNearCall(0x463680, aocfCheck_hook);
 	SokuLib::TamperNearJmp(0x46EB30/* ObjectHandler_SpawnBullet */, ObjectHandler_SpawnBullet_hook);
 	*(char *)0x463685 = 0x90;
+	new SokuLib::Trampoline(0x4664CA, modifyBoxes, 6);
 	new SokuLib::Trampoline(0x4818C3, loadExtraCharacters, 6);
 
 	// Increase speed of timer in clear
