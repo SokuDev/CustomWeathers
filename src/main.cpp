@@ -79,7 +79,7 @@ struct GameDataManager {
 }; // 0x58
 
 #define DISABLE_VANILLA
-#define FORCE_WEATHER CUSTOMWEATHER_MISSING_PURPLE_MIST
+//#define FORCE_WEATHER CUSTOMWEATHER_REVERSE_FIELD
 #define WEATHER_TIMER_MULTIPLIER 3
 #define MISSING_PURPLE_MIST_SMOOTHING_TIME 30
 
@@ -108,6 +108,17 @@ void deleteCharacter(SokuLib::CharacterManager *p)
 	SokuLib::Delete(p);
 }
 
+enum BlockResult {
+	BLOCKRESULT_HIT,
+	BLOCKRESULT_HIGH_RIGHTBLOCK,
+	BLOCKRESULT_HIGH_WRONGBLOCKBLOCK,
+	BLOCKRESULT_LOW_RIGHTBLOCK,
+	BLOCKRESULT_LOW_WRONGBLOCKBLOCK,
+	BLOCKRESULT_AIRBLOCK,
+	BLOCKRESULT_GUARDPOINT
+};
+
+static BlockResult (__thiscall *og_checkHit)(SokuLib::CharacterManager *, SokuLib::AttackFlags);
 static SokuLib::BattleManager *(SokuLib::BattleManager::*ogBattleMgrDestructor)(char unknown);
 static int (SokuLib::BattleManager::*ogBattleMgrOnMatchProcess)();
 static int (SokuLib::BattleManager::*ogBattleMgrOnProcess)();
@@ -256,7 +267,7 @@ const short weatherTimes[] {
 	999, // CUSTOMWEATHER_HAAR
 	999, // CUSTOMWEATHER_MISSING_PURPLE_MIST
 	10/* 999 */, // CUSTOMWEATHER_WATER_HAZE
-	10/* 999 */, // CUSTOMWEATHER_REVERSE_FIELD
+	999, // CUSTOMWEATHER_REVERSE_FIELD
 	10/* 999 */, // CUSTOMWEATHER_ILLUSION_MIST
 	10/* 100 */, // CUSTOMWEATHER_ETERNAL_NIGHT
 };
@@ -1084,16 +1095,6 @@ void __declspec(naked) checkCalm()
 
 const unsigned switchNormal = 0x47C5B3;
 
-enum BlockResult {
-	BLOCKRESULT_HIT,
-	BLOCKRESULT_HIGH_RIGHTBLOCK,
-	BLOCKRESULT_HIGH_WRONGBLOCKBLOCK,
-	BLOCKRESULT_LOW_RIGHTBLOCK,
-	BLOCKRESULT_LOW_WRONGBLOCKBLOCK,
-	BLOCKRESULT_AIRBLOCK,
-	BLOCKRESULT_GUARDPOINT
-};
-
 void __declspec(naked) onBlockHook()
 {
 	__asm {
@@ -1330,6 +1331,18 @@ void __fastcall ObjectHandler_SpawnBullet_hook(SokuLib::CharacterManager *This, 
 	}
 }
 
+BlockResult __fastcall checkHit(SokuLib::CharacterManager *This, int, SokuLib::AttackFlags attackFlags)
+{
+	if (This->effectiveWeather == CUSTOMWEATHER_REVERSE_FIELD) {
+		auto l = attackFlags.lowHit;
+
+		attackFlags.lowHit = attackFlags.midHit;
+		attackFlags.midHit = l;
+	}
+	return og_checkHit(This, attackFlags);
+}
+
+
 struct GiurollCallbacks {
 	unsigned (*saveState)();
 	void (*loadStatePre)(size_t frame, unsigned);
@@ -1396,6 +1409,7 @@ extern "C" __declspec(dllexport) bool Initialize(HMODULE hMyModule, HMODULE hPar
 	ogHudRender = (int (__thiscall *)(void *))SokuLib::TamperDword(0x85b544, onHudRender);
 	VirtualProtect((PVOID)RDATA_SECTION_OFFSET, RDATA_SECTION_SIZE, old, &old);
 	VirtualProtect((PVOID)TEXT_SECTION_OFFSET, TEXT_SECTION_SIZE, PAGE_EXECUTE_WRITECOPY, &old);
+	og_checkHit = reinterpret_cast<BlockResult (__thiscall *)(SokuLib::CharacterManager *, SokuLib::AttackFlags)>(SokuLib::TamperNearJmpOpr(0x47C5A9, checkHit));
 	SokuLib::TamperNearJmp(0x48247A, weatherTimer_hook);
 	SokuLib::TamperNearJmp(0x483DC2, handleSwitchWeather_hook);
 	memset((void *)0x441EE2, 0x90, 0x4421EE - 0x441EE2);

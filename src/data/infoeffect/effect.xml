@@ -1372,7 +1372,7 @@
 		</frame>
 	</animation>
 	<animation id="453" index="0" loop="1">
-		<frame image="weatherName_reverseField.bmp" index="0" unknown="0" xtexoffset="0" ytexoffset="0" texwidth="128" texheight="32" xoffset="64" yoffset="16" duration="9999" rendergroup="2">
+		<frame image="weatherName_reverseField_rev.bmp" index="0" unknown="0" xtexoffset="0" ytexoffset="0" texwidth="128" texheight="32" xoffset="64" yoffset="16" duration="9999" rendergroup="2">
 			<blend mode="0" color="ffffffff" xscale="100" yscale="100" vertflip="0" horzflip="0" angle="0"/>
 		</frame>
 	</animation>
