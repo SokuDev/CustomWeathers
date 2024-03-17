@@ -79,7 +79,7 @@ struct GameDataManager {
 }; // 0x58
 
 #define DISABLE_VANILLA
-//#define FORCE_WEATHER CUSTOMWEATHER_REVERSE_FIELD
+#define FORCE_WEATHER CUSTOMWEATHER_WATER_HAZE
 #define WEATHER_TIMER_MULTIPLIER 3
 #define MISSING_PURPLE_MIST_SMOOTHING_TIME 30
 
@@ -266,7 +266,7 @@ const short weatherTimes[] {
 	999, // CUSTOMWEATHER_RAGNAROK
 	999, // CUSTOMWEATHER_HAAR
 	999, // CUSTOMWEATHER_MISSING_PURPLE_MIST
-	10/* 999 */, // CUSTOMWEATHER_WATER_HAZE
+	999, // CUSTOMWEATHER_WATER_HAZE
 	999, // CUSTOMWEATHER_REVERSE_FIELD
 	10/* 999 */, // CUSTOMWEATHER_ILLUSION_MIST
 	10/* 100 */, // CUSTOMWEATHER_ETERNAL_NIGHT
@@ -971,7 +971,8 @@ void weatherEffectSet()
 	if (This->swordOfRaptureDebuffTimeLeft > 0)
 		weather = SokuLib::WEATHER_CLEAR;
 
-	if (weather == CUSTOMWEATHER_HAAR) {
+	switch (weather) {
+	case CUSTOMWEATHER_HAAR:
 		if (!characterSkills[i][0]) {
 			characterSkills[i][0] = 1;
 			memcpy(&characterSkills[i][1], This->skillMap, 15);
@@ -987,29 +988,7 @@ void weatherEffectSet()
 				This->skillMap[i + nbSkills * s].level = l + (i != 0);
 			}
 		}
-	}
-
-	if (weather == CUSTOMWEATHER_MISSING_PURPLE_MIST) {
-		if (characterSizeCtr[i] >= MISSING_PURPLE_MIST_SMOOTHING_TIME)
-			characterSizeCtr[i] = MISSING_PURPLE_MIST_SMOOTHING_TIME;
-		else
-			characterSizeCtr[i]++;
-		This->noSuperArmor = 0;
-		*(short *)&This->offset_0x4AA = 1;
-	}
-	/*if (
-		(characterSizeCtr[i] && characterSizeCtr[i] != MISSING_PURPLE_MIST_SMOOTHING_TIME) ||
-		(characterSizeCtr[i] == MISSING_PURPLE_MIST_SMOOTHING_TIME && characterUpdateCtr % 4 == 0)
-	) {
-		This->objectBase.hitstop++;
-		This->objectBase.hitstop += This->objectBase.hitstop == 1;
-		for (auto obj : This->objects.list.vector()) {
-			obj->hitstop++;
-			obj->hitstop += obj->hitstop == 1;
-		}
-	}*/
-
-	switch (weather) {
+		break;
 	case CUSTOMWEATHER_ANGEL_HALO:
 		if (This->offset_0x4C0[0xD]) {
 			This->dropInvulTimeLeft = 2;
@@ -1026,7 +1005,30 @@ void weatherEffectSet()
 		ObjectHandler_SpawnBullet(This, 1110, This->objectBase.position.x, 0, This->objectBase.direction, 0xffffffff, extraData, 3);
 		FUN_00438ce0(This, 0x8B, This->objectBase.position.x, This->objectBase.position.y, 1, 1);
 		break;
+	case CUSTOMWEATHER_MISSING_PURPLE_MIST:
+		if (characterSizeCtr[i] >= MISSING_PURPLE_MIST_SMOOTHING_TIME)
+			characterSizeCtr[i] = MISSING_PURPLE_MIST_SMOOTHING_TIME;
+		else
+			characterSizeCtr[i]++;
+		This->noSuperArmor = 0;
+		*(short *)&This->offset_0x4AA = 1;
+		break;
+	case CUSTOMWEATHER_WATER_HAZE:
+		This->speedMultiplier.x /= 4;
+		This->speedMultiplier.y /= 4;
+		break;
 	}
+	/*if (
+		(characterSizeCtr[i] && characterSizeCtr[i] != MISSING_PURPLE_MIST_SMOOTHING_TIME) ||
+		(characterSizeCtr[i] == MISSING_PURPLE_MIST_SMOOTHING_TIME && characterUpdateCtr % 4 == 0)
+	) {
+		This->objectBase.hitstop++;
+		This->objectBase.hitstop += This->objectBase.hitstop == 1;
+		for (auto obj : This->objects.list.vector()) {
+			obj->hitstop++;
+			obj->hitstop += obj->hitstop == 1;
+		}
+	}*/
 }
 
 void modifyBoxes()
