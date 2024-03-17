@@ -79,7 +79,7 @@ struct GameDataManager {
 }; // 0x58
 
 #define DISABLE_VANILLA
-#define FORCE_WEATHER CUSTOMWEATHER_WATER_HAZE
+#define FORCE_WEATHER CUSTOMWEATHER_ETERNAL_NIGHT
 #define WEATHER_TIMER_MULTIPLIER 3
 #define MISSING_PURPLE_MIST_SMOOTHING_TIME 30
 
@@ -269,7 +269,7 @@ const short weatherTimes[] {
 	999, // CUSTOMWEATHER_WATER_HAZE
 	999, // CUSTOMWEATHER_REVERSE_FIELD
 	10/* 999 */, // CUSTOMWEATHER_ILLUSION_MIST
-	10/* 100 */, // CUSTOMWEATHER_ETERNAL_NIGHT
+	150, // CUSTOMWEATHER_ETERNAL_NIGHT
 };
 
 void loadExtraCharacters()
@@ -450,7 +450,7 @@ void weatherActivate()
 {
 	float extraData[4];
 
-	if (SokuLib::activeWeather == CUSTOMWEATHER_FORGETFUL_WIND) {
+	if (SokuLib::activeWeather == CUSTOMWEATHER_FORGETFUL_WIND || SokuLib::activeWeather == CUSTOMWEATHER_ETERNAL_NIGHT) {
 		auto &btl = SokuLib::getBattleMgr();
 
 		timeStopLeft = 2;
@@ -473,38 +473,32 @@ void onWeatherActivate()
 int __fastcall CBattleManager_OnMatchProcess(SokuLib::BattleManager *This)
 {
 	unsigned timer = SokuLib::weatherCounter;
-	auto old1 = This->leftCharacterManager.effectiveWeather;
-	auto old2 = This->rightCharacterManager.effectiveWeather;
+	SokuLib::Weather old[2] = {
+		This->leftCharacterManager.effectiveWeather,
+		This->rightCharacterManager.effectiveWeather
+	};
 	auto ret = (This->*ogBattleMgrOnMatchProcess)();
 
-	if (This->leftCharacterManager.effectiveWeather == CUSTOMWEATHER_ANTINOMY_OF_COMMON_WEATHER) {
-		if (
-			(This->leftCharacterManager.untech == 0 && 50 <= This->leftCharacterManager.objectBase.action && This->leftCharacterManager.objectBase.action < 150) ||
-			This->leftCharacterManager.objectBase.hp == 0 ||
-			This->leftCharacterManager.damageLimited
-		) {
-			if (This->leftCharacterManager.objectBase.gravity.y < 0)
-				This->leftCharacterManager.objectBase.gravity.y *= -1;
-		} else if (This->leftCharacterManager.objectBase.position.y == 0)
-			This->leftCharacterManager.objectBase.position.y += 10;
-	} else if (old1 == CUSTOMWEATHER_ANTINOMY_OF_COMMON_WEATHER) {
-		if (This->leftCharacterManager.objectBase.gravity.y < 0)
-			This->leftCharacterManager.objectBase.gravity.y *= -1;
-	}
-
-	if (This->rightCharacterManager.effectiveWeather == CUSTOMWEATHER_ANTINOMY_OF_COMMON_WEATHER) {
-		if (
-			(This->rightCharacterManager.untech == 0 && 50 <= This->rightCharacterManager.objectBase.action && This->rightCharacterManager.objectBase.action < 150) ||
-			This->rightCharacterManager.objectBase.hp == 0 ||
-			This->rightCharacterManager.damageLimited
-		) {
-			if (This->rightCharacterManager.objectBase.gravity.y < 0)
-				This->rightCharacterManager.objectBase.gravity.y *= -1;
-		} else if (This->rightCharacterManager.objectBase.position.y == 0)
-			This->rightCharacterManager.objectBase.position.y += 10;
-	} else if (old2 == CUSTOMWEATHER_ANTINOMY_OF_COMMON_WEATHER) {
-		if (This->rightCharacterManager.objectBase.gravity.y < 0)
-			This->rightCharacterManager.objectBase.gravity.y *= -1;
+	for (int i = 0; i < 2; i++) {
+		if (dataMgr->players[i]->effectiveWeather == CUSTOMWEATHER_ANTINOMY_OF_COMMON_WEATHER) {
+			if (
+				(dataMgr->players[i]->untech == 0 && 50 <= dataMgr->players[i]->objectBase.action && dataMgr->players[i]->objectBase.action < 150) ||
+				dataMgr->players[i]->objectBase.hp == 0 ||
+				dataMgr->players[i]->damageLimited
+			) {
+				if (dataMgr->players[i]->objectBase.gravity.y < 0)
+					dataMgr->players[i]->objectBase.gravity.y *= -1;
+			} else if (dataMgr->players[i]->objectBase.position.y == 0)
+				dataMgr->players[i]->objectBase.position.y += 10;
+		} else if (old[i] == CUSTOMWEATHER_ANTINOMY_OF_COMMON_WEATHER) {
+			if (dataMgr->players[i]->objectBase.gravity.y < 0)
+				dataMgr->players[i]->objectBase.gravity.y *= -1;
+		}
+		if (dataMgr->players[i]->effectiveWeather == CUSTOMWEATHER_ETERNAL_NIGHT) {
+			dataMgr->players[i]->objectBase.renderInfos.shaderType = 1;
+			dataMgr->players[i]->objectBase.hitstop++;
+		} else if (old[i] == CUSTOMWEATHER_ETERNAL_NIGHT)
+			dataMgr->players[i]->objectBase.renderInfos.shaderType = 0;
 	}
 
 	if (
@@ -517,7 +511,9 @@ int __fastcall CBattleManager_OnMatchProcess(SokuLib::BattleManager *This)
 		weatherActivate();
 	}
 
-	if (SokuLib::activeWeather == CUSTOMWEATHER_FORGETFUL_WIND) {
+	if (SokuLib::activeWeather == CUSTOMWEATHER_ETERNAL_NIGHT)
+		timeStopLeft = 2;
+	else if (SokuLib::activeWeather == CUSTOMWEATHER_FORGETFUL_WIND) {
 		timeStopLeft = 2;
 		if (This->leftCharacterManager.projectileInvulTimer <= 1)
 			This->leftCharacterManager.projectileInvulTimer = 2;
