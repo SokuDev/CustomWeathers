@@ -78,6 +78,7 @@ struct GameDataManager {
 	SokuLib::List<SokuLib::CharacterManager*> destroyQueue;
 }; // 0x58
 
+#define COIN_EFFECT_DURATION 1800
 #define DISABLE_VANILLA
 #define FORCE_WEATHER CUSTOMWEATHER_ETERNAL_NIGHT
 #define WEATHER_TIMER_MULTIPLIER 3
@@ -659,7 +660,7 @@ int __fastcall CBattleManager_OnProcess(SokuLib::BattleManager *This)
 		checkCiF();
 		loadTexture(viewWindow, "data/infoeffect/view_window.png", true);
 		viewWindow.tint.a = 0;
-		printf("%p %p %p %p\n", dataMgr->players[0], dataMgr->players[1], &*extraCharacters[0], &*extraCharacters[1]);
+		printf("%p %p %p %p\n", dataMgr->players[0], dataMgr->players[1], extraCharacters[0], extraCharacters[1]);
 	}
 	return ret;
 }
@@ -1340,6 +1341,56 @@ BlockResult __fastcall checkHit(SokuLib::CharacterManager *This, int, SokuLib::A
 	return og_checkHit(This, attackFlags);
 }
 
+auto removeCardsFromPlayer = (void (__thiscall *)(SokuLib::CharacterManager *This, char param_1_00, char forcedCost, int param_4))0x469C70;
+auto onCardUsed = (void (__thiscall *)(SokuLib::CharacterManager *This))0x483D60;
+auto FUN_0046d950 = (void (__thiscall *)(SokuLib::CharacterManager *This))0x46D950;
+unsigned systemCardHookRet = 0x48AF6D;
+void (*og_handDataOperatorBracket)();
+
+bool checkExtraSystemCards()
+{
+	SokuLib::CharacterManager *This;
+	__asm MOV [This], ESI
+
+	unsigned short id = This->hand[0].id;
+	auto action = This->objectBase.action;
+	auto iVar8 = *(int *)&This->objectBase.offset_0x18C[4];
+
+	if (id == 12 && (
+		action < SokuLib::ACTION_5A ||
+		(iVar8 != 0 && iVar8 != 3)
+	)) {
+		This->swordOfRaptureDebuffTimeLeft = COIN_EFFECT_DURATION;
+		*(int *)&This->offset_0x7CD[3] = id;
+		This->objectBase.renderInfos.zRotation = 0;
+		FUN_0046d950(This);
+		((SokuLib::v2::AnimationObject *)This)->setAction(SokuLib::ACTION_SYSTEM_CARD);
+		removeCardsFromPlayer(This, '\0', '\0', 0x3C);
+		onCardUsed(This);
+		FUN_00438ce0(This, 0x47, This->objectBase.position.x, This->objectBase.position.y + 100.0, This->objectBase.direction, 1);
+		return true;
+	}
+	return false;
+}
+
+void __declspec(naked) checkExtraSystemCards_hook()
+{
+	__asm {
+		PUSH ECX
+		PUSH EDX
+		CALL checkExtraSystemCards
+		POP EDX
+		POP ECX
+		TEST EAX, EAX
+		JZ normalRet
+
+		ADD ESP, 8
+		JMP [systemCardHookRet]
+
+	normalRet:
+		JMP [og_handDataOperatorBracket]
+	}
+}
 
 struct GiurollCallbacks {
 	unsigned (*saveState)();
@@ -1447,8 +1498,13 @@ extern "C" __declspec(dllexport) bool Initialize(HMODULE hMyModule, HMODULE hPar
 	new SokuLib::Trampoline(0x4664CA, modifyBoxes, 6);
 	new SokuLib::Trampoline(0x4818C3, loadExtraCharacters, 6);
 
+	og_handDataOperatorBracket = SokuLib::TamperNearJmpOpr(0x48AF7C, checkExtraSystemCards_hook);
+
 	// Increase speed of timer in clear
 	*(unsigned char *)0x48242B = WEATHER_TIMER_MULTIPLIER;
+
+	*(char *)0x48ACF0 = 0x90;
+	*(char *)0x48ACF1 = 0xE9;
 
 	// Filesystem first patch
 	*(char *)0x40D1FB = 0xEB;
