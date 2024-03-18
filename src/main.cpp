@@ -78,9 +78,9 @@ struct GameDataManager {
 	SokuLib::List<SokuLib::CharacterManager*> destroyQueue;
 }; // 0x58
 
-#define COIN_EFFECT_DURATION 1800
+#define COIN_EFFECT_DURATION 600
 #define DISABLE_VANILLA
-#define FORCE_WEATHER CUSTOMWEATHER_ETERNAL_NIGHT
+//#define FORCE_WEATHER CUSTOMWEATHER_IMPASSABLE_FOG
 #define WEATHER_TIMER_MULTIPLIER 3
 #define MISSING_PURPLE_MIST_SMOOTHING_TIME 30
 
@@ -119,6 +119,22 @@ enum BlockResult {
 	BLOCKRESULT_GUARDPOINT
 };
 
+std::map<SokuLib::Character, SokuLib::Character> soku2BaseCharacters{
+	{ SokuLib::CHARACTER_MOMIJI,     SokuLib::CHARACTER_REIMU },
+	{ SokuLib::CHARACTER_CLOWNPIECE, SokuLib::CHARACTER_REISEN },
+	{ SokuLib::CHARACTER_FLANDRE,    SokuLib::CHARACTER_REMILIA },
+	{ SokuLib::CHARACTER_ORIN,       SokuLib::CHARACTER_CIRNO },
+	{ SokuLib::CHARACTER_YUUKA,      SokuLib::CHARACTER_UTSUHO },
+	{ SokuLib::CHARACTER_KAGUYA,     SokuLib::CHARACTER_PATCHOULI },
+	{ SokuLib::CHARACTER_MOKOU,      SokuLib::CHARACTER_AYA },
+	{ SokuLib::CHARACTER_MIMA,       SokuLib::CHARACTER_IKU },
+	{ SokuLib::CHARACTER_SHOU,       SokuLib::CHARACTER_TENSHI },
+	{ SokuLib::CHARACTER_MURASA,     SokuLib::CHARACTER_SUIKA },
+	{ SokuLib::CHARACTER_SEKIBANKI,  SokuLib::CHARACTER_YOUMU },
+	{ SokuLib::CHARACTER_SATORI,     SokuLib::CHARACTER_YUYUKO },
+	{ SokuLib::CHARACTER_RAN,        SokuLib::CHARACTER_SAKUYA },
+};
+
 static BlockResult (__thiscall *og_checkHit)(SokuLib::CharacterManager *, SokuLib::AttackFlags);
 static SokuLib::BattleManager *(SokuLib::BattleManager::*ogBattleMgrDestructor)(char unknown);
 static int (SokuLib::BattleManager::*ogBattleMgrOnMatchProcess)();
@@ -150,6 +166,135 @@ static std::pair<SokuLib::PlayerInfo, SokuLib::PlayerInfo> *extra = nullptr;
 static SokuLib::DrawUtils::Sprite viewWindow;
 static std::list<SokuLib::KeyInput> lastInputs[2];
 static unsigned short timeStopLeft = 0;
+
+auto allocAndStoreArray3 = (void ***(__thiscall *)(void *, void *, void *))0x6FB680;
+auto checkListTooLong = (void (__thiscall *)(void *, unsigned))0x47D030;
+auto FUN_0067d670 = (int *(__thiscall *)(SokuLib::ObjListManager *This, int param_1, SokuLib::CharacterManager &owner, unsigned action, float x, float y, int dir, unsigned color, float *extraData, unsigned extraDataSize))0x67D670;
+
+template<typename T>
+void pushToList(SokuLib::CharacterManager &chr)
+{
+	float t[4] = {0, 0, 0, 0};
+
+	ObjectHandler_SpawnBullet(&chr, 800, 0, 0, 1, 0xFFFFFFFF, t, 4);
+
+	auto c = new T();
+	DWORD old;
+	constexpr unsigned size1 = 0x67D2D6 - 0x67D2A5;
+	char buffer1[size1];
+	constexpr unsigned size2 = 0x67D3BE - 0x67D393;
+	char buffer2[size2];
+
+	VirtualProtect((PVOID)TEXT_SECTION_OFFSET, TEXT_SECTION_SIZE, PAGE_EXECUTE_WRITECOPY, &old);
+	memcpy(buffer1, (void *)0x67D2A5, size1);
+	memset((void *)0x67D2A5, 0x90, 5);
+	memset((void *)0x67D2AE, 0x90, 0x67D2D6 - 0x67D2AE);
+	// MOV EAX, c
+	*(unsigned char *)0x67D2AE = 0xB8;
+	*(T **)0x67D2AF = c;
+
+	memcpy(buffer2, (void *)0x67D393, size2);
+	*(unsigned char *)0x67D393 = 0x90;
+	memset((void *)0x67D399, 0x90, 0x67D3BE - 0x67D399);
+	// MOV ESI, c
+	*(unsigned char *)0x67D399 = 0xBE;
+	*(T **)0x67D39A = c;
+	VirtualProtect((PVOID)TEXT_SECTION_OFFSET, TEXT_SECTION_SIZE, old, &old);
+	FlushInstructionCache(GetCurrentProcess(), nullptr, 0);
+
+	FUN_0067d670(&chr.objects, 0, chr, 800, 0, 0, 1, 0xFFFFFFFF, nullptr, 0);
+
+	VirtualProtect((PVOID)TEXT_SECTION_OFFSET, TEXT_SECTION_SIZE, PAGE_EXECUTE_WRITECOPY, &old);
+	memcpy((void *)0x67D2A5, buffer1, size1);
+	memcpy((void *)0x67D393, buffer2, size2);
+	VirtualProtect((PVOID)TEXT_SECTION_OFFSET, TEXT_SECTION_SIZE, old, &old);
+	FlushInstructionCache(GetCurrentProcess(), nullptr, 0);
+}
+
+class CloneObject : public SokuLib::v2::EffectObjectBase {
+public:
+	char unknown170[0x240];
+
+	CloneObject() {
+		printf("CloneObject %p\n", this);
+	}
+
+	~CloneObject() override {
+		printf("~CloneObject: %p\n", this);
+	}
+
+	void setActionSequence(short action, short seq) override {
+		printf("setActionSequence %p %i %i\n", this, action, seq);
+	}
+
+	bool setAction(short action) override {
+		printf("setAction %p %i\n", this, action);
+		return true;
+	}
+
+	void setSequence(short seq) override {
+		printf("setSequence %p %i\n", this, seq);
+	}
+
+	void resetSequence() override {
+		printf("resetSequence: %p\n", this);
+	}
+
+	bool nextSequence() override {
+		printf("nextSequence: %p\n", this);
+		return true;
+	}
+
+	void prevSequence() override {
+		printf("prevSequence: %p\n", this);
+	}
+
+	void setPose(short pose) override {
+		printf("setPose %p %i\n", this, pose);
+	}
+
+	bool nextPose() override {
+		printf("nextPose: %p\n", this);
+		return true;
+	}
+
+	void prevPose() override {
+		printf("prevPose: %p\n", this);
+	}
+
+	void update() override {
+		printf("update: %p\n", this);
+	}
+
+	void render() override {
+		printf("render: %p\n", this);
+	}
+
+	void render2() override {
+		printf("render2: %p\n", this);
+	}
+
+	void applyTransform() override {
+		printf("applyTransform: %p\n", this);
+	}
+
+	void onRenderEnd() override {
+		printf("onRenderEnd: %p\n", this);
+	}
+
+	bool initializeAction() override {
+		printf("initializeAction: %p\n", this);
+		return true;
+	}
+
+	virtual void fct1(int param_1, int param_2, int param_3, int param_4, int param_5, int param_6, int param_7) {
+		printf("fct1 %p %i %i %i %i %i %i %i", this, param_1, param_2, param_3, param_4, param_5, param_6, param_7);
+	}
+
+	virtual void fct2(int param_1, int param_2, int param_3, int param_4, int param_5, int param_6, int param_7) {
+		printf("fct2 %p %i %i %i %i %i %i %i", this, param_1, param_2, param_3, param_4, param_5, param_6, param_7);
+	}
+};
 
 
 class SavedFrame {
@@ -263,11 +408,11 @@ const short weatherTimes[] {
 	500, // CUSTOMWEATHER_IMPASSABLE_FOG
 	999, // CUSTOMWEATHER_ANTINOMY_OF_COMMON_WEATHER
 	500, // CUSTOMWEATHER_FORGETFUL_WIND
-	999, // CUSTOMWEATHER_BLIZZARD
+	500, // CUSTOMWEATHER_BLIZZARD
 	999, // CUSTOMWEATHER_RAGNAROK
 	999, // CUSTOMWEATHER_HAAR
 	999, // CUSTOMWEATHER_MISSING_PURPLE_MIST
-	999, // CUSTOMWEATHER_WATER_HAZE
+	750, // CUSTOMWEATHER_WATER_HAZE
 	999, // CUSTOMWEATHER_REVERSE_FIELD
 	10/* 999 */, // CUSTOMWEATHER_ILLUSION_MIST
 	150, // CUSTOMWEATHER_ETERNAL_NIGHT
@@ -280,9 +425,13 @@ void loadExtraCharacters()
 
 	if (!extra)
 		extra = new std::pair<SokuLib::PlayerInfo, SokuLib::PlayerInfo>();
-	extra->first.character = static_cast<SokuLib::Character>(sokuRand(SokuLib::CHARACTER_RANDOM));
+	do {
+		extra->first.character = static_cast<SokuLib::Character>(sokuRand(SokuLib::CHARACTER_RANDOM));
+	} while (SokuLib::rightChar > SokuLib::CHARACTER_RANDOM && soku2BaseCharacters[SokuLib::rightChar] == extra->second.character);
+	do {
+		extra->second.character = static_cast<SokuLib::Character>(sokuRand(SokuLib::CHARACTER_RANDOM));
+	} while (SokuLib::rightChar > SokuLib::CHARACTER_RANDOM && soku2BaseCharacters[SokuLib::rightChar] == extra->second.character);
 	extra->first.palette = 0;
-	extra->second.character = static_cast<SokuLib::Character>(sokuRand(SokuLib::CHARACTER_RANDOM));
 	extra->second.palette = extra->first.character == extra->second.character;
 	extra->second.isRight = true;
 
@@ -479,7 +628,12 @@ int __fastcall CBattleManager_OnMatchProcess(SokuLib::BattleManager *This)
 		This->rightCharacterManager.effectiveWeather
 	};
 	auto ret = (This->*ogBattleMgrOnMatchProcess)();
+	//static bool b = false;
 
+	/*if (!b) {
+		b = true;
+		pushToList<CloneObject>(This->leftCharacterManager);
+	}*/
 	for (int i = 0; i < 2; i++) {
 		if (dataMgr->players[i]->effectiveWeather == CUSTOMWEATHER_ANTINOMY_OF_COMMON_WEATHER) {
 			if (
@@ -523,7 +677,7 @@ int __fastcall CBattleManager_OnMatchProcess(SokuLib::BattleManager *This)
 	} else
 		timeStopLeft = 0;
 
-	desertMirageSwap(This);
+	//desertMirageSwap(This);
 	for (int i = 0 ; i < 2; i++) {
 		auto chr = dataMgr->players[i];
 		auto weather = chr->effectiveWeather;
@@ -537,14 +691,22 @@ int __fastcall CBattleManager_OnMatchProcess(SokuLib::BattleManager *This)
 					characterAlpha[i] = 255;
 				else
 					characterAlpha[i] += 5;
-				chr->objectBase.renderInfos.color.a = characterAlpha[i];
+				if (SokuLib::mainMode == SokuLib::BATTLE_MODE_VSWATCH)
+					chr->objectBase.renderInfos.color.a = (100 + (characterAlpha[i] * 155/ 255));
+				else
+					//chr->objectBase.renderInfos.color.a = (100 + (characterAlpha[i] * 155/ 255));
+					chr->objectBase.renderInfos.color.a = characterAlpha[i];
 			}
 		} else {
 			if (characterAlpha[i] < 5)
 				characterAlpha[i] = 0;
 			else
 				characterAlpha[i] -= 5;
-			chr->objectBase.renderInfos.color.a = characterAlpha[i];
+			if (SokuLib::mainMode == SokuLib::BATTLE_MODE_VSWATCH)
+				chr->objectBase.renderInfos.color.a = (100 + (characterAlpha[i] * 155/ 255));
+			else
+				//chr->objectBase.renderInfos.color.a = (100 + (characterAlpha[i] * 155/ 255));
+				chr->objectBase.renderInfos.color.a = characterAlpha[i];
 		}
 	}
 
@@ -865,8 +1027,8 @@ int __fastcall onHudRender(CInfoManager *This)
 {
 	int ret = 0;
 
-	if (SokuLib::sceneId != SokuLib::SCENE_BATTLEWATCH) {
-		auto &player = *(SokuLib::sceneId == SokuLib::SCENE_BATTLECL ? This->p2State : This->p1State).player;
+	if (SokuLib::mainMode != SokuLib::BATTLE_MODE_VSWATCH) {
+		auto &player = *(SokuLib::mainMode == SokuLib::BATTLE_MODE_VSSERVER ? This->p2State : This->p1State).player;
 
 		viewWindow.setPosition(
 			SokuLib::Vector2f{player.objectBase.position.x, -player.objectBase.position.y}.to<int>() -
@@ -974,7 +1136,7 @@ void weatherEffectSet()
 			characterSkills[i][0] = 1;
 			memcpy(&characterSkills[i][1], This->skillMap, 15);
 
-			auto nbSkills = 4 + (This->characterIndex == SokuLib::CHARACTER_PATCHOULI);
+			auto nbSkills = 4 + (This->characterIndex == SokuLib::CHARACTER_PATCHOULI || This->characterIndex == SokuLib::CHARACTER_KAGUYA);
 
 			memset(This->skillMap, 0xFF, 15);
 			for (int i = 0; i < nbSkills; i++) {
@@ -995,7 +1157,7 @@ void weatherEffectSet()
 			break;
 		This->offset_0x4C0[0xD] = true;
 		if (SokuLib::displayedWeather != CUSTOMWEATHER_SHOOTING_STAR)
-			SokuLib::weatherCounter /= 2;
+			SokuLib::weatherCounter /= 3;
 		extraData[0] = 0;
 		extraData[1] = 0;
 		extraData[2] = 0;
@@ -1238,6 +1400,21 @@ float charSpeedLookup[] = {
 	7,   -7,   // CHARACTER_MEILING
 	3,   -3,   // CHARACTER_UTSUHO
 	6,   -7,   // CHARACTER_SUWAKO
+	0,    0,   // CHARACTER_RANDOM
+	0,    0,   // CHARACTER_NAMAZU
+	4.5, -4.5, // CHARACTER_MOMIJI
+	4,   -4,   // CHARACTER_CLOWNPIECE
+	6.5, -6.5, // CHARACTER_FLANDRE
+	6.5, -6.5, // CHARACTER_ORIN
+	3,   -3,   // CHARACTER_YUUKA
+	4,   -4,   // CHARACTER_KAGUYA
+	5.5, -5.5, // CHARACTER_MOKOU
+	2.5, -3,   // CHARACTER_MIMA
+	4.5, -4.5, // CHARACTER_SHOU
+	5.5, -5.5, // CHARACTER_MURASA
+	4,   -4,   // CHARACTER_SEKIBANKI
+	4,   -4,   // CHARACTER_SATORI
+	6,   -6    // CHARACTER_RAN
 };
 
 void aocfCheck(SokuLib::CharacterManager *chr, float newY, float oldY)
