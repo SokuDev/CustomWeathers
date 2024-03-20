@@ -1486,9 +1486,17 @@ void __declspec(naked) aocfCheck_hook()
 	}
 }
 
-void __fastcall ObjectHandler_SpawnBullet_hook(SokuLib::CharacterManager *This, int, int action, float x, float y, int dir, unsigned color, float *extraData, unsigned extraDataSize)
+void callFct(SokuLib::CharacterManager *This, int action, float x, float y, int dir, unsigned color, float *extraData, unsigned extraDataSize)
 {
 	auto fct = ((void (__thiscall **)(SokuLib::ObjListManager &, int, SokuLib::CharacterManager *, int, float, float, int, unsigned, float *, unsigned))*(int *)This->objects.offset_0x00)[1];
+
+	__asm PUSH EBP
+	fct(This->objects, 0, This, action, x, y, dir, color, extraData, extraDataSize);
+	__asm POP EBP
+}
+
+void __fastcall ObjectHandler_SpawnBullet_hook(SokuLib::CharacterManager *This, int, int action, float x, float y, int dir, unsigned color, float *extraData, unsigned extraDataSize)
+{
 	auto &battleMgr = SokuLib::getBattleMgr();
 	auto i = This == &battleMgr.leftCharacterManager;
 	auto scale = (1 + (float) characterSizeCtr[i] / MISSING_PURPLE_MIST_SMOOTHING_TIME);
@@ -1500,23 +1508,23 @@ void __fastcall ObjectHandler_SpawnBullet_hook(SokuLib::CharacterManager *This, 
 
 	// Normal case, weather isn't activated
 	if (This->effectiveWeather != CUSTOMWEATHER_RAGNAROK)
-		return fct(This->objects, 0, This, action, x, y, dir, color, extraData, extraDataSize);
+		return callFct(This, action, x, y, dir, color, extraData, extraDataSize);
 	// These are weather effects and stuff, no need to double them
 	if (action >= 1000)
-		return fct(This->objects, 0, This, action, x, y, dir, color, extraData, extraDataSize);
+		return callFct(This, action, x, y, dir, color, extraData, extraDataSize);
 	// [1] is the velocity.
 	// If it's set to 0 then the bullet probably doesn't support rotation,
 	// so we just spawn them on top of each other
 	if (extraDataSize < 3 || extraData[1] == 0) {
-		fct(This->objects, 0, This, action, x, y - 15 * scale, dir, color, extraData, extraDataSize);
-		fct(This->objects, 0, This, action, x, y + 15 * scale, dir, color, extraData, extraDataSize);
+		callFct(This, action, x, y - 15 * scale, dir, color, extraData, extraDataSize);
+		callFct(This, action, x, y + 15 * scale, dir, color, extraData, extraDataSize);
 	} else {
 		// -10°
 		extraData[0] -= 10;
-		fct(This->objects, 0, This, action, x, y, dir, color, extraData, extraDataSize);
+		callFct(This, action, x, y, dir, color, extraData, extraDataSize);
 		// +10°
 		extraData[0] += 20;
-		fct(This->objects, 0, This, action, x, y, dir, color, extraData, extraDataSize);
+		callFct(This, action, x, y, dir, color, extraData, extraDataSize);
 	}
 }
 
