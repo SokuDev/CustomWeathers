@@ -179,49 +179,14 @@ auto allocAndStoreArray3 = (void ***(__thiscall *)(void *, void *, void *))0x6FB
 auto checkListTooLong = (void (__thiscall *)(void *, unsigned))0x47D030;
 auto FUN_0067d670 = (int *(__thiscall *)(SokuLib::ObjListManager *This, int param_1, SokuLib::CharacterManager &owner, unsigned action, float x, float y, int dir, unsigned color, float *extraData, unsigned extraDataSize))0x67D670;
 
-template<typename T>
-void pushToList(SokuLib::CharacterManager &chr)
-{
-	float t[4] = {0, 0, 0, 0};
-
-	ObjectHandler_SpawnBullet(&chr, 800, 0, 0, 1, 0xFFFFFFFF, t, 4);
-
-	auto c = new T();
-	DWORD old;
-	constexpr unsigned size1 = 0x67D2D6 - 0x67D2A5;
-	char buffer1[size1];
-	constexpr unsigned size2 = 0x67D3BE - 0x67D393;
-	char buffer2[size2];
-
-	VirtualProtect((PVOID)TEXT_SECTION_OFFSET, TEXT_SECTION_SIZE, PAGE_EXECUTE_WRITECOPY, &old);
-	memcpy(buffer1, (void *)0x67D2A5, size1);
-	memset((void *)0x67D2A5, 0x90, 5);
-	memset((void *)0x67D2AE, 0x90, 0x67D2D6 - 0x67D2AE);
-	// MOV EAX, c
-	*(unsigned char *)0x67D2AE = 0xB8;
-	*(T **)0x67D2AF = c;
-
-	memcpy(buffer2, (void *)0x67D393, size2);
-	*(unsigned char *)0x67D393 = 0x90;
-	memset((void *)0x67D399, 0x90, 0x67D3BE - 0x67D399);
-	// MOV ESI, c
-	*(unsigned char *)0x67D399 = 0xBE;
-	*(T **)0x67D39A = c;
-	VirtualProtect((PVOID)TEXT_SECTION_OFFSET, TEXT_SECTION_SIZE, old, &old);
-	FlushInstructionCache(GetCurrentProcess(), nullptr, 0);
-
-	FUN_0067d670(&chr.objects, 0, chr, 800, 0, 0, 1, 0xFFFFFFFF, nullptr, 0);
-
-	VirtualProtect((PVOID)TEXT_SECTION_OFFSET, TEXT_SECTION_SIZE, PAGE_EXECUTE_WRITECOPY, &old);
-	memcpy((void *)0x67D2A5, buffer1, size1);
-	memcpy((void *)0x67D393, buffer2, size2);
-	VirtualProtect((PVOID)TEXT_SECTION_OFFSET, TEXT_SECTION_SIZE, old, &old);
-	FlushInstructionCache(GetCurrentProcess(), nullptr, 0);
-}
-
-class CloneObject : public SokuLib::v2::EffectObjectBase {
+class CloneObject : public SokuLib::v2::AnimationObject {
 public:
 	char unknown170[0x240];
+
+	SokuLib::ObjectManager *v1()
+	{
+		return (SokuLib::ObjectManager *)this;
+	}
 
 	CloneObject() {
 		printf("CloneObject %p\n", this);
@@ -237,6 +202,8 @@ public:
 
 	bool setAction(short action) override {
 		printf("setAction %p %i\n", this, action);
+		printf("owner %p %p\n", this->v1()->owner, this->v1()->owner2);
+		this->frameData = reinterpret_cast<SokuLib::v2::FrameData *>(this->v1()->owner->objectBase.frameData);
 		return true;
 	}
 
@@ -272,6 +239,7 @@ public:
 
 	void update() override {
 		printf("update: %p\n", this);
+		this->frameData = reinterpret_cast<SokuLib::v2::FrameData *>(this->v1()->owner->objectBase.frameData);
 	}
 
 	void render() override {
@@ -290,19 +258,59 @@ public:
 		printf("onRenderEnd: %p\n", this);
 	}
 
-	bool initializeAction() override {
-		printf("initializeAction: %p\n", this);
-		return true;
+	virtual void fct1() {
+		printf("fct1: %p\n", this);
 	}
 
-	virtual void fct1(int param_1, int param_2, int param_3, int param_4, int param_5, int param_6, int param_7) {
-		printf("fct1 %p %i %i %i %i %i %i %i", this, param_1, param_2, param_3, param_4, param_5, param_6, param_7);
+	virtual void fct2() {
+		printf("fct2: %p\n", this);
 	}
 
-	virtual void fct2(int param_1, int param_2, int param_3, int param_4, int param_5, int param_6, int param_7) {
-		printf("fct2 %p %i %i %i %i %i %i %i", this, param_1, param_2, param_3, param_4, param_5, param_6, param_7);
+	virtual void fct3(int param_1, int param_2, int param_3, int param_4, int param_5, int param_6, int param_7) {
+		printf("fct3 %p %i %i %i %i %i %i %i\n", this, param_1, param_2, param_3, param_4, param_5, param_6, param_7);
+	}
+
+	virtual void fct4(int param_1, int param_2, int param_3, int param_4, int param_5, int param_6, int param_7) {
+		printf("fct4 %p %i %i %i %i %i %i %i\n", this, param_1, param_2, param_3, param_4, param_5, param_6, param_7);
 	}
 };
+
+
+template<class T>
+T *__fastcall create(T *This)
+{
+	return new (This) T;
+}
+
+template<typename T>
+void pushToList(SokuLib::CharacterManager &chr)
+{
+	float t[4] = {0, 0, 0, 0};
+
+	ObjectHandler_SpawnBullet(&chr, 800, 0, 0, 1, 0xFFFFFFFF, t, 4);
+
+	T c;
+	auto vt = *(unsigned *)&c;
+	DWORD old;
+
+	VirtualProtect((PVOID)TEXT_SECTION_OFFSET, TEXT_SECTION_SIZE, PAGE_EXECUTE_WRITECOPY, &old);
+	auto fct1 = SokuLib::TamperNearJmpOpr(0x67D2C7, &create<T>);
+	auto fct2 = SokuLib::TamperNearJmpOpr(0x67D3B3, &create<T>);
+	auto vt1 = SokuLib::TamperDword(0x67D2CE, vt);
+	auto vt2 = SokuLib::TamperDword(0x67D3BA, vt);
+	VirtualProtect((PVOID)TEXT_SECTION_OFFSET, TEXT_SECTION_SIZE, old, &old);
+	FlushInstructionCache(GetCurrentProcess(), nullptr, 0);
+
+	FUN_0067d670(&chr.objects, 0, chr, 800, 0, 0, 1, 0xFFFFFFFF, nullptr, 0);
+
+	VirtualProtect((PVOID)TEXT_SECTION_OFFSET, TEXT_SECTION_SIZE, PAGE_EXECUTE_WRITECOPY, &old);
+	SokuLib::TamperNearJmpOpr(0x67D2C7, fct1);
+	SokuLib::TamperNearJmpOpr(0x67D3B3, fct2);
+	SokuLib::TamperDword(0x67D2CE, vt1);
+	SokuLib::TamperDword(0x67D3BA, vt2);
+	VirtualProtect((PVOID)TEXT_SECTION_OFFSET, TEXT_SECTION_SIZE, old, &old);
+	FlushInstructionCache(GetCurrentProcess(), nullptr, 0);
+}
 
 
 class SavedFrame {
@@ -422,10 +430,11 @@ const short weatherTimes[] {
 	999, // CUSTOMWEATHER_MISSING_PURPLE_MIST
 	750, // CUSTOMWEATHER_WATER_HAZE
 	999, // CUSTOMWEATHER_REVERSE_FIELD
-	999, // CUSTOMWEATHER_MYSTERIOUS_WIND
+	500, // CUSTOMWEATHER_ILLUSION_MIST
 	150, // CUSTOMWEATHER_ETERNAL_NIGHT
 	999, // CUSTOMWEATHER_FROST
 	999, // CUSTOMWEATHER_HOT_WIND
+	999, // CUSTOMWEATHER_MYSTERIOUS_WIND
 };
 
 void loadExtraCharacters()
@@ -638,12 +647,12 @@ int __fastcall CBattleManager_OnMatchProcess(SokuLib::BattleManager *This)
 		This->rightCharacterManager.effectiveWeather
 	};
 	auto ret = (This->*ogBattleMgrOnMatchProcess)();
-	//static bool b = false;
+	static bool b = false;
 
-	/*if (!b) {
+	if (!b) {
 		b = true;
 		pushToList<CloneObject>(This->leftCharacterManager);
-	}*/
+	}
 	for (int i = 0; i < 2; i++) {
 		if (dataMgr->players[i]->effectiveWeather == CUSTOMWEATHER_ANTINOMY_OF_COMMON_WEATHER) {
 			if (
@@ -1999,6 +2008,10 @@ extern "C" __declspec(dllexport) bool Initialize(HMODULE hMyModule, HMODULE hPar
 	VirtualProtect((PVOID)TEXT_SECTION_OFFSET, TEXT_SECTION_SIZE, old, &old);
 
 	FlushInstructionCache(GetCurrentProcess(), nullptr, 0);
+
+	CloneObject o;
+
+	printf("%p %p\n", *(void **)&o, (*(void ***)&o)[16]);
 	return true;
 }
 
