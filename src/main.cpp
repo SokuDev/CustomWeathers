@@ -78,9 +78,11 @@ struct GameDataManager {
 	SokuLib::List<SokuLib::CharacterManager*> destroyQueue;
 }; // 0x58
 
+#define HOT_WIND_FORCED_DAMAGE 750
+#define HOT_WIND_FORCED_DAMAGE_CH 3000
 #define COIN_EFFECT_DURATION 600
 #define DISABLE_VANILLA
-//#define FORCE_WEATHER CUSTOMWEATHER_IMPASSABLE_FOG
+#define FORCE_WEATHER CUSTOMWEATHER_HOT_WIND
 #define WEATHER_TIMER_MULTIPLIER 3
 #define MISSING_PURPLE_MIST_SMOOTHING_TIME 30
 
@@ -100,6 +102,8 @@ enum CustomWeathers {
 	CUSTOMWEATHER_REVERSE_FIELD,
 	CUSTOMWEATHER_ILLUSION_MIST,
 	CUSTOMWEATHER_ETERNAL_NIGHT,
+	CUSTOMWEATHER_FROST,
+	CUSTOMWEATHER_HOT_WIND,
 	CUSTOMWEATHER_SIZE
 };
 
@@ -416,6 +420,8 @@ const short weatherTimes[] {
 	999, // CUSTOMWEATHER_REVERSE_FIELD
 	10/* 999 */, // CUSTOMWEATHER_ILLUSION_MIST
 	150, // CUSTOMWEATHER_ETERNAL_NIGHT
+	999, // CUSTOMWEATHER_FROST
+	999, // CUSTOMWEATHER_HOT_WIND
 };
 
 void loadExtraCharacters()
@@ -1131,6 +1137,13 @@ void weatherEffectSet()
 		weather = SokuLib::WEATHER_CLEAR;
 
 	switch (weather) {
+	case CUSTOMWEATHER_HOT_WIND:
+		This->offset_0x56F = true;
+		break;
+	case CUSTOMWEATHER_FROST:
+		if (This->objectBase.action <= SokuLib::ACTION_5A)
+			This->groundDashCount = 1;
+		break;
 	case CUSTOMWEATHER_HAAR:
 		if (!characterSkills[i][0]) {
 			characterSkills[i][0] = 1;
@@ -1421,7 +1434,7 @@ void aocfCheck(SokuLib::CharacterManager *chr, float newY, float oldY)
 {
 	if (chr->effectiveWeather != CUSTOMWEATHER_ANTINOMY_OF_COMMON_WEATHER)
 		return;
-	chr->airdashCount = 0;
+	chr->airDashCount = 0;
 	if (50 <= chr->objectBase.action && chr->objectBase.action < 150) {
 		if (chr->damageLimited || chr->untech == 0 || chr->objectBase.hp == 0) {
 			if (chr->objectBase.gravity.y < 0)
@@ -1569,6 +1582,106 @@ void __declspec(naked) checkExtraSystemCards_hook()
 	}
 }
 
+using SokuLib::weatherCounter;
+
+void __declspec(naked) hotWindFixupLimit()
+{
+	__asm {
+		// if (this->effectiveWeather == CUSTOMWEATHER_HOT_WIND)
+		CMP [ESI + 0x52C], CUSTOMWEATHER_HOT_WIND
+		JNZ noChange
+
+		// if (counterHit)
+		CMP byte ptr [ESP + 0x17], 0x1
+		JNZ lowerWeather
+
+		// defender->realLimit = 100;
+		MOV word ptr [ESI + 0x4BE], 100
+
+		// attacker->owner2.combo.limit = 100;
+		MOV EAX, dword ptr [EDI + 0x16c]
+		MOV word ptr [EAX + 0x4B8], 100
+
+		MOV EAX, [weatherCounter]
+		SUB word ptr [EAX], 500
+		JMP noChange
+
+	lowerWeather:
+		MOV EAX, [weatherCounter]
+		SUB word ptr [EAX], 100
+
+	noChange:
+		CMP word ptr [ESI + 0x184], 0x0
+		RET
+	}
+}
+
+
+void __declspec(naked) hotWindDamageHook()
+{
+	__asm {
+		MOV ECX, [ESI + 0x16C]
+		MOV ECX, [ECX + 0x52C]
+		CMP ECX, CUSTOMWEATHER_HOT_WIND
+		JNZ normal
+
+		CMP byte ptr [ESP + 0x23], 0x1
+		JNZ notCH
+
+		MOV ECX, HOT_WIND_FORCED_DAMAGE_CH
+		RET
+
+	notCH:
+		MOV ECX, HOT_WIND_FORCED_DAMAGE
+		RET
+
+	normal:
+		MOV EAX, dword ptr [ESI + 0x1C0]
+		MOVSX ECX, word ptr [EAX + 0x1C]
+		RET
+	}
+}
+
+void __declspec(naked) hotWindHitStopHook()
+{
+	__asm {
+		// Attacker
+		MOV EDX, [EDI + 0x16C]
+		// Defender
+		MOV ECX, [ESI + 0x16C]
+		CMP [EDX + 0x52C], CUSTOMWEATHER_HOT_WIND
+		JNZ normal
+
+		CMP byte ptr [ESP + 0x17], 0x1
+		JNZ normal
+
+		CMP [ECX + 0x4A8], 30
+		JZ modify
+
+		CMP word ptr [EDX + 0x4B4], 0x0
+		JNZ normal
+
+		MOV DX, 30
+		MOV [ECX + 0x4A8], DX
+
+	modify:
+		MOV CX, [EBP + 0x2A]
+		MOV DX, [EBP + 0x2C]
+		ADD DX, 30
+		JMP apply
+
+	normal:
+		MOV CX, [EBP + 0x2A]
+		MOV DX, [EBP + 0x2C]
+
+	apply:
+		MOV [EDI + 0x196], CX
+		MOV [ESI + 0x196], DX
+		CMP byte ptr [ESP + 0x17], 00
+		RET
+	}
+}
+
 struct GiurollCallbacks {
 	unsigned (*saveState)();
 	void (*loadStatePre)(size_t frame, unsigned);
@@ -1674,6 +1787,15 @@ extern "C" __declspec(dllexport) bool Initialize(HMODULE hMyModule, HMODULE hPar
 	*(char *)0x463685 = 0x90;
 	new SokuLib::Trampoline(0x4664CA, modifyBoxes, 6);
 	new SokuLib::Trampoline(0x4818C3, loadExtraCharacters, 6);
+
+	SokuLib::TamperNearCall(0x47AC44, hotWindFixupLimit);
+	*(char *)0x47AC49 = 0x90;
+	*(char *)0x47AC4A = 0x90;
+	*(char *)0x47AC4B = 0x90;
+	memset((void *)0x47AE24, 0x90, 22);
+	SokuLib::TamperNearCall(0x47AE24, hotWindHitStopHook);
+	memset((void *)0x464A89, 0x90, 10);
+	SokuLib::TamperNearCall(0x464A89, hotWindDamageHook);
 
 	og_handDataOperatorBracket = SokuLib::TamperNearJmpOpr(0x48AF7C, checkExtraSystemCards_hook);
 
