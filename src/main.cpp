@@ -162,6 +162,17 @@ const auto FUN_00438ce0 = reinterpret_cast<void (__thiscall *)(void *, unsigned,
 static CInfoManager *&hud = *(CInfoManager **)0x8985E8;
 static GameDataManager*& dataMgr = *(GameDataManager**)SokuLib::ADDR_GAME_DATA_MANAGER;
 
+struct CloneInfo {
+	SokuLib::FrameData *data;
+	SokuLib::Vector2f pos;
+	unsigned char hitBoxCount;
+	unsigned char hurtBoxCount;
+	SokuLib::Box hitboxes[5];
+	SokuLib::Box hurtboxes[5];
+	SokuLib::RotationBox *hitBoxesRotation[5];
+	SokuLib::RotationBox *hurtBoxesRotation[5];
+};
+
 static bool needCleaning = false;
 static bool init = false;
 static SokuLib::SWRFont font;
@@ -203,7 +214,8 @@ public:
 	bool setAction(short action) override {
 		printf("setAction %p %i\n", this, action);
 		printf("owner %p %p\n", this->v1()->owner, this->v1()->owner2);
-		this->frameData = reinterpret_cast<SokuLib::v2::FrameData *>(this->v1()->owner->objectBase.frameData);
+		this->v1()->image = this->v1()->owner->objectBase.frameData;
+		this->v1()->frameData = this->v1()->owner->objectBase.frameData;
 		return true;
 	}
 
