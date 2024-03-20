@@ -82,7 +82,7 @@ struct GameDataManager {
 #define HOT_WIND_FORCED_DAMAGE_CH 3000
 #define COIN_EFFECT_DURATION 600
 #define DISABLE_VANILLA
-#define FORCE_WEATHER CUSTOMWEATHER_HOT_WIND
+#define FORCE_WEATHER CUSTOMWEATHER_MYSTERIOUS_WIND
 #define WEATHER_TIMER_MULTIPLIER 3
 #define MISSING_PURPLE_MIST_SMOOTHING_TIME 30
 
@@ -104,6 +104,7 @@ enum CustomWeathers {
 	CUSTOMWEATHER_ETERNAL_NIGHT,
 	CUSTOMWEATHER_FROST,
 	CUSTOMWEATHER_HOT_WIND,
+	CUSTOMWEATHER_MYSTERIOUS_WIND,
 	CUSTOMWEATHER_SIZE
 };
 
@@ -139,6 +140,9 @@ std::map<SokuLib::Character, SokuLib::Character> soku2BaseCharacters{
 	{ SokuLib::CHARACTER_RAN,        SokuLib::CHARACTER_SAKUYA },
 };
 
+static void (__thiscall *ogBattleMgrHandleCollision)(SokuLib::BattleManager*, void*, SokuLib::CharacterManager*);
+static void (__thiscall *ogRenderObjectLayer)(GameDataManager *, int);
+static void (__thiscall *ogRenderCharacters)(GameDataManager *);
 static BlockResult (__thiscall *og_checkHit)(SokuLib::CharacterManager *, SokuLib::AttackFlags);
 static SokuLib::BattleManager *(SokuLib::BattleManager::*ogBattleMgrDestructor)(char unknown);
 static int (SokuLib::BattleManager::*ogBattleMgrOnMatchProcess)();
@@ -418,7 +422,7 @@ const short weatherTimes[] {
 	999, // CUSTOMWEATHER_MISSING_PURPLE_MIST
 	750, // CUSTOMWEATHER_WATER_HAZE
 	999, // CUSTOMWEATHER_REVERSE_FIELD
-	10/* 999 */, // CUSTOMWEATHER_ILLUSION_MIST
+	999, // CUSTOMWEATHER_MYSTERIOUS_WIND
 	150, // CUSTOMWEATHER_ETERNAL_NIGHT
 	999, // CUSTOMWEATHER_FROST
 	999, // CUSTOMWEATHER_HOT_WIND
@@ -1129,7 +1133,7 @@ void weatherEffectSet()
 	SokuLib::CharacterManager *This;
 	__asm MOV [This], ESI
 
-	int i = This == dataMgr->players[1];
+	int index = This == dataMgr->players[1];
 	float extraData[4];
 	auto weather = This->effectiveWeather;
 
@@ -1137,6 +1141,18 @@ void weatherEffectSet()
 		weather = SokuLib::WEATHER_CLEAR;
 
 	switch (weather) {
+	case CUSTOMWEATHER_MYSTERIOUS_WIND:
+		if (This->objectBase.position.x < -60)
+			This->objectBase.position.x += 1200;
+		else if (This->objectBase.position.x > 1340)
+			This->objectBase.position.x -= 1200;
+		for (auto &obj : This->objects.list.vector()) {
+			if (obj->position.x < -60)
+				obj->position.x += 1200;
+			else if (obj->position.x > 1340)
+				obj->position.x -= 1200;
+		}
+		break;
 	case CUSTOMWEATHER_HOT_WIND:
 		This->offset_0x56F = true;
 		break;
@@ -1145,9 +1161,9 @@ void weatherEffectSet()
 			This->groundDashCount = 1;
 		break;
 	case CUSTOMWEATHER_HAAR:
-		if (!characterSkills[i][0]) {
-			characterSkills[i][0] = 1;
-			memcpy(&characterSkills[i][1], This->skillMap, 15);
+		if (!characterSkills[index][0]) {
+			characterSkills[index][0] = 1;
+			memcpy(&characterSkills[index][1], This->skillMap, 15);
 
 			auto nbSkills = 4 + (This->characterIndex == SokuLib::CHARACTER_PATCHOULI || This->characterIndex == SokuLib::CHARACTER_KAGUYA);
 
@@ -1178,10 +1194,10 @@ void weatherEffectSet()
 		FUN_00438ce0(This, 0x8B, This->objectBase.position.x, This->objectBase.position.y, 1, 1);
 		break;
 	case CUSTOMWEATHER_MISSING_PURPLE_MIST:
-		if (characterSizeCtr[i] >= MISSING_PURPLE_MIST_SMOOTHING_TIME)
-			characterSizeCtr[i] = MISSING_PURPLE_MIST_SMOOTHING_TIME;
+		if (characterSizeCtr[index] >= MISSING_PURPLE_MIST_SMOOTHING_TIME)
+			characterSizeCtr[index] = MISSING_PURPLE_MIST_SMOOTHING_TIME;
 		else
-			characterSizeCtr[i]++;
+			characterSizeCtr[index]++;
 		This->noSuperArmor = 0;
 		*(short *)&This->offset_0x4AA = 1;
 		break;
@@ -1599,6 +1615,8 @@ void __declspec(naked) hotWindFixupLimit()
 		CMP [ESI + 0x52C], CUSTOMWEATHER_HOT_WIND
 		JNZ noChange
 
+		//MOV byte ptr [ESP + 0x17], 0x1
+
 		// if (counterHit)
 		CMP byte ptr [ESP + 0x17], 0x1
 		JNZ lowerWeather
@@ -1617,6 +1635,7 @@ void __declspec(naked) hotWindFixupLimit()
 	lowerWeather:
 		MOV EAX, [weatherCounter]
 		SUB word ptr [EAX], 100
+
 
 	noChange:
 		CMP word ptr [ESI + 0x184], 0x0
@@ -1697,6 +1716,149 @@ struct GiurollCallbacks {
 	void (*freeState)(unsigned);
 };
 
+struct SavedRenderData {
+	SokuLib::Vector2f pos;
+	unsigned char alpha;
+};
+
+void __fastcall renderObjectLayer(GameDataManager *This, int, int layer)
+{
+	std::map<void *, SavedRenderData> data[2];
+
+	ogRenderObjectLayer(This, layer);
+
+	for (int i = 0; i < 2; i++) {
+		for (auto &obj : This->players[i]->objects.list.vector()) {
+			data[i][obj] = { obj->position, obj->renderInfos.color.a };
+			if (This->players[i]->effectiveWeather != CUSTOMWEATHER_MYSTERIOUS_WIND) {
+				obj->renderInfos.color.a = 0;
+				continue;
+			}
+			if (obj->position.x < 640)
+				obj->position.x += 1240;
+			else
+				obj->position.x -= 1240;
+		}
+	}
+	ogRenderObjectLayer(This, layer);
+	for (int i = 0; i < 2; i++) {
+		for (auto &obj : This->players[i]->objects.list.vector()) {
+			obj->position = data[i][obj].pos;
+			obj->renderInfos.color.a = data[i][obj].alpha;
+		}
+	}
+}
+
+void __fastcall renderCharacters(GameDataManager *This)
+{
+	SavedRenderData lData{ This->players[0]->objectBase.position, This->players[0]->objectBase.renderInfos.color.a };
+	SavedRenderData rData{ This->players[1]->objectBase.position, This->players[1]->objectBase.renderInfos.color.a };
+
+	ogRenderCharacters(This);
+
+	for (int i = 0; i < 2; i++) {
+		if (This->players[i]->effectiveWeather != CUSTOMWEATHER_MYSTERIOUS_WIND) {
+			This->players[i]->objectBase.renderInfos.color.a = 0;
+			continue;
+		}
+		if (This->players[i]->objectBase.position.x < 640)
+			This->players[i]->objectBase.position.x += 1240;
+		else
+			This->players[i]->objectBase.position.x -= 1240;
+	}
+	ogRenderCharacters(This);
+
+	This->players[0]->objectBase.position = lData.pos;
+	This->players[0]->objectBase.renderInfos.color.a = lData.alpha;
+	This->players[1]->objectBase.position = rData.pos;
+	This->players[1]->objectBase.renderInfos.color.a = rData.alpha;
+}
+
+void __fastcall CBattleManager_HandleCollision(SokuLib::BattleManager *This, int, SokuLib::ObjectManager *object, SokuLib::CharacterManager* character)
+{
+	ogBattleMgrHandleCollision(This, object, character);
+	if (character->effectiveWeather == CUSTOMWEATHER_MYSTERIOUS_WIND) {
+		auto p = character->objectBase.position;
+		auto hi = character->objectBase.hitBoxes;
+		auto hu = character->objectBase.hurtBoxes;
+
+		if (character->objectBase.position.x < 640) {
+			character->objectBase.position.x += 1200;
+			for (auto &h : character->objectBase.hurtBoxes) {
+				h.left += 1200;
+				h.right += 1200;
+			}
+			for (auto &h : character->objectBase.hitBoxes) {
+				h.left += 1200;
+				h.right += 1200;
+			}
+		} else {
+			character->objectBase.position.x -= 1200;
+			for (auto &h : character->objectBase.hurtBoxes) {
+				h.left -= 1200;
+				h.right -= 1200;
+			}
+			for (auto &h : character->objectBase.hitBoxes) {
+				h.left -= 1200;
+				h.right -= 1200;
+			}
+		}
+		ogBattleMgrHandleCollision(This, object, character);
+		character->objectBase.position = p;
+		memcpy(&character->objectBase.hitBoxes, hi, sizeof(object->hitBoxes));
+		memcpy(&character->objectBase.hurtBoxes, hu, sizeof(object->hurtBoxes));
+	} else if (object->owner->effectiveWeather == CUSTOMWEATHER_MYSTERIOUS_WIND) {
+		auto p = object->position;
+		auto hi = object->hitBoxes;
+		auto hu = object->hurtBoxes;
+
+		if (object->position.x < 640) {
+			object->position.x += 1200;
+			for (auto &h : object->hurtBoxes) {
+				h.left += 1200;
+				h.right += 1200;
+			}
+			for (auto &h : object->hitBoxes) {
+				h.left += 1200;
+				h.right += 1200;
+			}
+		} else {
+			object->position.x -= 1200;
+			for (auto &h : object->hurtBoxes) {
+				h.left -= 1200;
+				h.right -= 1200;
+			}
+			for (auto &h : object->hitBoxes) {
+				h.left -= 1200;
+				h.right -= 1200;
+			}
+		}
+		ogBattleMgrHandleCollision(This, object, character);
+		object->position = p;
+		memcpy(&object->hitBoxes, hi, sizeof(object->hitBoxes));
+		memcpy(&object->hurtBoxes, hu, sizeof(object->hurtBoxes));
+	}
+}
+
+void __declspec(naked) forceLockOut()
+{
+	__asm {
+		CMP dword ptr [ESI + 0x52C], CUSTOMWEATHER_MYSTERIOUS_WIND
+		JZ ret_
+
+		CMP byte ptr [ESI + 0x571], 0x0
+	ret_:
+		ret
+	}
+}
+
+#define my_assert(expr) do { if (!(expr)) { MessageBoxA(SokuLib::window, "Debug assertion failed", "Debug assertion " #expr " was false.", MB_ICONERROR); return FALSE; } } while (0)
+
+bool sameFctCall(unsigned addr1, unsigned addr2)
+{
+	return (*(unsigned *)(addr1 + 1) + addr1 + 5) == (*(unsigned *)(addr2 + 1) + addr2 + 5);
+}
+
 // Called when the mod loader is ready to initialize this module.
 // All hooks should be placed here. It's also a good moment to load settings from the ini.
 extern "C" __declspec(dllexport) bool Initialize(HMODULE hMyModule, HMODULE hParentModule)
@@ -1745,6 +1907,10 @@ extern "C" __declspec(dllexport) bool Initialize(HMODULE hMyModule, HMODULE hPar
 	freopen_s(&_, "CONOUT$", "w", stdout);
 	freopen_s(&_, "CONOUT$", "w", stderr);
 #endif
+	my_assert(sameFctCall(0x47A91D, 0x47A94F));
+	my_assert(sameFctCall(0x47A91D, 0x47A972));
+	my_assert(sameFctCall(0x47A91D, 0x47A97F));
+	my_assert(sameFctCall(0x47A91D, 0x47A99B));
 	VirtualProtect((PVOID)RDATA_SECTION_OFFSET, RDATA_SECTION_SIZE, PAGE_EXECUTE_WRITECOPY, &old);
 	ogBattleMgrDestructor = SokuLib::TamperDword(&SokuLib::VTable_BattleManager.destructor, CBattleManager_Destructor);
 	ogSelectOnProcess = SokuLib::TamperDword(&SokuLib::VTable_Select.onProcess, CSelect_OnProcess);
@@ -1756,6 +1922,14 @@ extern "C" __declspec(dllexport) bool Initialize(HMODULE hMyModule, HMODULE hPar
 	ogHudRender = (int (__thiscall *)(void *))SokuLib::TamperDword(0x85b544, onHudRender);
 	VirtualProtect((PVOID)RDATA_SECTION_OFFSET, RDATA_SECTION_SIZE, old, &old);
 	VirtualProtect((PVOID)TEXT_SECTION_OFFSET, TEXT_SECTION_SIZE, PAGE_EXECUTE_WRITECOPY, &old);
+	ogBattleMgrHandleCollision = reinterpret_cast<void (__thiscall *)(SokuLib::BattleManager *, void *,SokuLib::CharacterManager *)>(SokuLib::TamperNearJmpOpr(0x47D618, CBattleManager_HandleCollision));
+	SokuLib::TamperNearJmpOpr(0x47D64C, CBattleManager_HandleCollision);
+	ogRenderObjectLayer = reinterpret_cast<void (__thiscall *)(GameDataManager *, int)>(SokuLib::TamperNearJmpOpr(0x47A91D, renderObjectLayer));
+	SokuLib::TamperNearJmpOpr(0x47A94F, renderObjectLayer);
+	SokuLib::TamperNearJmpOpr(0x47A972, renderObjectLayer);
+	SokuLib::TamperNearJmpOpr(0x47A97F, renderObjectLayer);
+	SokuLib::TamperNearJmpOpr(0x47A99B, renderObjectLayer);
+	ogRenderCharacters = reinterpret_cast<void (__thiscall *)(GameDataManager *)>(SokuLib::TamperNearJmpOpr(0x47A95A, renderCharacters));
 	og_checkHit = reinterpret_cast<BlockResult (__thiscall *)(SokuLib::CharacterManager *, SokuLib::AttackFlags)>(SokuLib::TamperNearJmpOpr(0x47C5A9, checkHit));
 	SokuLib::TamperNearJmp(0x48247A, weatherTimer_hook);
 	SokuLib::TamperNearJmp(0x483DC2, handleSwitchWeather_hook);
@@ -1795,6 +1969,9 @@ extern "C" __declspec(dllexport) bool Initialize(HMODULE hMyModule, HMODULE hPar
 	*(char *)0x463685 = 0x90;
 	new SokuLib::Trampoline(0x4664CA, modifyBoxes, 6);
 	new SokuLib::Trampoline(0x4818C3, loadExtraCharacters, 6);
+	SokuLib::TamperNearCall(0x463578, forceLockOut);
+	*(char *)0x46357D = 0x90;
+	*(char *)0x46357E = 0x90;
 
 	SokuLib::TamperNearCall(0x47AC44, hotWindFixupLimit);
 	*(char *)0x47AC49 = 0x90;
