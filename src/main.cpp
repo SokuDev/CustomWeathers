@@ -86,7 +86,7 @@ struct GameDataManager {
 #define HOT_WIND_FORCED_DAMAGE_CH 3000
 #define COIN_EFFECT_DURATION 600
 #define DISABLE_VANILLA
-//#define FORCE_WEATHER CUSTOMWEATHER_MISSING_PURPLE_MIST
+//#define FORCE_WEATHER CUSTOMWEATHER_MYSTERIOUS_WIND
 #define WEATHER_TIMER_MULTIPLIER 3
 #define MISSING_PURPLE_MIST_SMOOTHING_TIME 30
 
@@ -168,44 +168,45 @@ static GameDataManager*& dataMgr = *(GameDataManager**)SokuLib::ADDR_GAME_DATA_M
 
 struct CloneInfo {
 	SokuLib::SpriteEx sprite;
-	SokuLib::FrameData *img;
-	SokuLib::FrameData *data;
+	SokuLib::v2::FrameData *img;
+	SokuLib::v2::CharacterFrameData *data;
 	SokuLib::Vector2f pos;
 	SokuLib::Vector2f center;
 	SokuLib::RenderInfo infos;
-	unsigned short totalFrames;
+	int hasHit;
 	SokuLib::Direction dir;
 	unsigned char hitCount;
-	unsigned char hasHit;
 
-	CloneInfo(SokuLib::ObjectManager *obj)
+	CloneInfo(SokuLib::v2::Player *obj)
 	{
 		this->sprite = obj->sprite;
 		this->center = obj->center;
-		this->hasHit = obj->offset_0x18C[4];
+		this->hasHit = obj->collisionType;
 		this->dir = obj->direction;
-		this->totalFrames = obj->frameCount;
-		this->hitCount = obj->hitCount;
-		this->img = obj->image;
-		this->data = obj->frameData;
+		this->hitCount = obj->collisionLimit;
+		this->img = obj->frameData;
+		this->data = obj->gameData.frameData;
 		this->pos = obj->position;
 		this->infos = obj->renderInfos;
 	};
 
-	void restore(SokuLib::ObjectManager *obj)
+	void restore(SokuLib::v2::GameObject *obj)
 	{
 		obj->sprite = this->sprite;
 		obj->center = this->center;
-		obj->offset_0x18C[4] = this->hasHit;
+		if (this->hasHit == 0) {
+			obj->collisionType = 0;
+			obj->collisionLimit = this->hitCount;
+		}
 		obj->direction = this->dir;
-		obj->hitCount = this->hitCount;
-		obj->image = this->img;
-		obj->frameData = SokuLib::New<SokuLib::FrameData>(sizeof(SokuLib::v2::CharacterFrameData));
-		memcpy(obj->frameData, this->data, sizeof(SokuLib::v2::CharacterFrameData));
-		((SokuLib::v2::CharacterFrameData *)obj->frameData)->onBlockPStun = 0;
-		((SokuLib::v2::CharacterFrameData *)obj->frameData)->onHitPStun = 0;
+		obj->frameData = this->img;
 		obj->position = this->pos;
 		obj->renderInfos = this->infos;
+
+		SokuLib::DeleteFct(obj->gameData.frameData);
+		obj->gameData.frameData = (SokuLib::v2::CharacterFrameData *)SokuLib::NewFct(sizeof(*obj->gameData.frameData));
+		memcpy(obj->gameData.frameData, this->data, sizeof(*obj->gameData.frameData));
+		obj->gameData.frameData->collisionBox = nullptr;
 	};
 };
 
@@ -229,34 +230,39 @@ auto allocAndStoreArray3 = (void ***(__thiscall *)(void *, void *, void *))0x6FB
 auto checkListTooLong = (void (__thiscall *)(void *, unsigned))0x47D030;
 auto FUN_0067d670 = (int *(__thiscall *)(SokuLib::ObjListManager *This, int param_1, SokuLib::CharacterManager &owner, unsigned action, float x, float y, int dir, unsigned color, float *extraData, unsigned extraDataSize))0x67D670;
 
-class CloneObject : public SokuLib::v2::AnimationObject {
+#define _STR(s) #s
+#define STR(s) _STR(s)
+#define gassert(expr) do { if (!(expr)) { MessageBoxA(SokuLib::window, "Debug assertion " #expr ", line " STR(__LINE__) " was false.", "Debug assertion failed", MB_ICONERROR); abort(); } } while (0)
+#define my_assert(expr) do { if (!(expr)) { MessageBoxA(SokuLib::window, "Debug assertion " #expr " was false.", "Debug assertion failed", MB_ICONERROR); return FALSE; } } while (0)
+
+
+class CloneObject : public SokuLib::v2::GameObject {
 public:
-	char unknown170[0x240];
-
-	SokuLib::ObjectManager *v1()
-	{
-		return (SokuLib::ObjectManager *)this;
-	}
-
 	CloneObject() {
-		this->v1()->image = nullptr;
-		this->v1()->frameData = nullptr;
+		this->frameData = nullptr;
+		this->gameData.frameData = nullptr;
 	};
-	~CloneObject() override = default;
+	~CloneObject() override {
+		SokuLib::DeleteFct(this->gameData.frameData);
+	};
 
 	void setActionSequence(short action, short seq) override {
 		printf("setActionSequence: %p %i %i\n", this, action, seq);
 	}
 
 	bool setAction(short action) override {
-		if (!this->v1()->image)
-			this->v1()->image = this->v1()->owner->objectBase.image;
-		if (!this->v1()->frameData) {
-			this->v1()->frameData = SokuLib::New<SokuLib::FrameData>(sizeof(SokuLib::v2::CharacterFrameData));
-			memcpy(this->v1()->frameData, this->v1()->owner->objectBase.frameData, sizeof(SokuLib::v2::CharacterFrameData));
-			((SokuLib::v2::CharacterFrameData *)this->v1()->frameData)->onBlockPStun = 0;
-			((SokuLib::v2::CharacterFrameData *)this->v1()->frameData)->onHitPStun = 0;
+		printf("setAction: %p %i\n", this, action);
+		int index = (void *)&SokuLib::getBattleMgr().leftCharacterManager == this->gameData.owner;
+
+		this->gameData.sequenceData = this->gameData.owner->gameData.sequenceData;
+		if (!this->frameData)
+			this->frameData = this->gameData.owner->frameData;
+		if (!this->gameData.frameData) {
+			this->gameData.frameData = (SokuLib::v2::CharacterFrameData *)SokuLib::NewFct(sizeof(*this->gameData.frameData));
+			memcpy(this->gameData.frameData, this->gameData.owner->gameData.frameData, sizeof(*this->gameData.frameData));
 		}
+		lastClones[index].emplace_back(this->gameData.owner);
+		gassert(this->gameData.frameData);
 		return true;
 	}
 
@@ -291,25 +297,22 @@ public:
 	}
 
 	void update() override {
-		int index = &SokuLib::getBattleMgr().leftCharacterManager == this->v1()->owner;
+		int index = (void *)&SokuLib::getBattleMgr().leftCharacterManager == this->gameData.owner;
 
-		lastClones[index].emplace_back(&this->v1()->owner->objectBase);
-		if (lastClones[index].size() > CLONE_DESYNC_DELAY)
-			lastClones[index].pop_front();
-		lastClones[index].front().restore(this->v1());
-		if (this->v1()->owner->effectiveWeather == CUSTOMWEATHER_ILLUSION_MIST) {
+		this->lifetime = 1;
+		gassert(!lastClones[index].empty());
+		lastClones[index].front().restore(this);
+		this->renderInfos.color = SokuLib::Color{0xFF, 0xFF, 0xFF, clonesAlpha[index]};
+		this->renderInfos.shaderType = 1;
+		this->boxData.frameData = nullptr;
+		if (this->gameData.owner->weatherId == CUSTOMWEATHER_ILLUSION_MIST) {
 			if (clonesAlpha[index] < 0x80)
 				clonesAlpha[index] += 4;
-			memset(this->v1()->frameData->offset_0x58, 0, 0x10);
 		} else {
 			if (clonesAlpha[index] != 0)
 				clonesAlpha[index] -= 4;
-			memset(this->v1()->frameData->offset_0x58, 0, 0x50);
-			this->v1()->hitBoxCount = 0;
-			this->v1()->hurtBoxCount = 0;
+			memset(&this->gameData.frameData->hurtBoxes, 0, 0x50);
 		}
-		this->renderInfos.color = SokuLib::Color{0xFF, 0xFF, 0xFF, clonesAlpha[index]};
-		this->renderInfos.shaderType = 1;
 	}
 
 	void render() override {
@@ -331,20 +334,28 @@ public:
 		((void (__thiscall *)(SokuLib::v2::AnimationObject *))0x439040)(this);
 	}
 
-	virtual void fct1() {
-		printf("fct1: %p\n", this);
+	bool initializeAction() override {
+		printf("initializeAction: %p\n", this);
+		return true;
 	}
 
-	virtual void fct2() {
-		// printf("fct2: %p\n", this);
+	void updatePhysics() override {
+		int index = (void *)&SokuLib::getBattleMgr().leftCharacterManager == this->gameData.owner;
+
+		// printf("updatePhysics: %p\n", this);
+		if (lastClones[index].size() > CLONE_DESYNC_DELAY)
+			lastClones[index].pop_front();
+		lastClones[index].emplace_back(this->gameData.owner);
+	};
+
+	GameObject* createObject(SokuLib::Action actionId, float x, int y, SokuLib::Direction dir, char layer, void* customData, unsigned int customDataSize) override {
+		printf("createObject %p %i %f %i %i %i %p %i\n", this, actionId, x, y, dir, layer, customData, customDataSize);
+		return nullptr;
 	}
 
-	virtual void fct3(int param_1, int param_2, int param_3, int param_4, int param_5, int param_6, int param_7) {
-		printf("fct3 %p %i %i %i %i %i %i %i\n", this, param_1, param_2, param_3, param_4, param_5, param_6, param_7);
-	}
-
-	virtual void fct4(int param_1, int param_2, int param_3, int param_4, int param_5, int param_6, int param_7) {
-		printf("fct4 %p %i %i %i %i %i %i %i\n", this, param_1, param_2, param_3, param_4, param_5, param_6, param_7);
+	GameObject* createChild(SokuLib::Action actionId, float x, int y, SokuLib::Direction dir, char layer, void* customData, unsigned int customDataSize) override {
+		printf("createChild %p %i %f %i %i %i %p %i\n", this, actionId, x, y, dir, layer, customData, customDataSize);
+		return nullptr;
 	}
 };
 
@@ -1932,7 +1943,37 @@ void __declspec(naked) forceLockOut()
 	}
 }
 
-#define my_assert(expr) do { if (!(expr)) { MessageBoxA(SokuLib::window, "Debug assertion failed", "Debug assertion " #expr " was false.", MB_ICONERROR); return FALSE; } } while (0)
+bool __fastcall turnAroundWrapped(SokuLib::ObjectManager *This)
+{
+	auto oldDir = This->direction;
+	auto opX = This->opponent->objectBase.position.x;
+	auto myX = This->position.x;
+
+	if (opX > myX && opX - myX > WRAP_SIZE / 2)
+		myX += WRAP_SIZE;
+	else if (opX < myX && myX - opX > WRAP_SIZE / 2)
+		opX += WRAP_SIZE;
+	if (myX == opX)
+		return false;
+	if (myX > opX)
+		This->direction = SokuLib::LEFT;
+	else if (myX < opX)
+		This->direction = SokuLib::RIGHT;
+	return oldDir == This->direction;
+}
+
+unsigned turnAround_hook_retAddr = 0x469E86;
+
+void __declspec(naked) turnAround_hook()
+{
+	__asm {
+		CMP [ECX + 0x52C], CUSTOMWEATHER_MYSTERIOUS_WIND
+		// This returns directly to the caller if took
+		JZ turnAroundWrapped
+		FLD dword ptr [ECX + 0xEC]
+		JMP turnAround_hook_retAddr
+	}
+}
 
 bool sameFctCall(unsigned addr1, unsigned addr2)
 {
@@ -2052,6 +2093,9 @@ extern "C" __declspec(dllexport) bool Initialize(HMODULE hMyModule, HMODULE hPar
 	SokuLib::TamperNearCall(0x463578, forceLockOut);
 	*(char *)0x46357D = 0x90;
 	*(char *)0x46357E = 0x90;
+
+	SokuLib::TamperNearJmp(0x469E80, turnAround_hook);
+	*(char *)0x469E85 = 0x90;
 
 	SokuLib::TamperNearCall(0x47AC44, hotWindFixupLimit);
 	*(char *)0x47AC49 = 0x90;
