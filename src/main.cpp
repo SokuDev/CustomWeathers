@@ -308,6 +308,7 @@ public:
 		if (this->gameData.owner->weatherId == CUSTOMWEATHER_ILLUSION_MIST) {
 			if (clonesAlpha[index] < 0x80)
 				clonesAlpha[index] += 4;
+			memset(&this->gameData.frameData->hurtBoxes, 0, 0x10);
 		} else {
 			if (clonesAlpha[index] != 0)
 				clonesAlpha[index] -= 4;
@@ -514,19 +515,19 @@ const short weatherTimes[] {
 	000, // WEATHER_CLEAR
 	999, // CUSTOMWEATHER_ANGEL_HALO
 	999, // CUSTOMWEATHER_DESERT_MIRAGE
-	999, // CUSTOMWEATHER_SHOOTING_STAR
+	499, // CUSTOMWEATHER_SHOOTING_STAR
 	500, // CUSTOMWEATHER_THUNDERSTORM
 	500, // CUSTOMWEATHER_IMPASSABLE_FOG
-	999, // CUSTOMWEATHER_ANTINOMY_OF_COMMON_WEATHER
+	750, // CUSTOMWEATHER_ANTINOMY_OF_COMMON_WEATHER
 	500, // CUSTOMWEATHER_FORGETFUL_WIND
-	500, // CUSTOMWEATHER_BLIZZARD
+	250, // CUSTOMWEATHER_BLIZZARD
 	999, // CUSTOMWEATHER_RAGNAROK
 	999, // CUSTOMWEATHER_HAAR
-	999, // CUSTOMWEATHER_MISSING_PURPLE_MIST
+	666, // CUSTOMWEATHER_MISSING_PURPLE_MIST
 	750, // CUSTOMWEATHER_WATER_HAZE
 	999, // CUSTOMWEATHER_REVERSE_FIELD
 	500, // CUSTOMWEATHER_ILLUSION_MIST
-	150, // CUSTOMWEATHER_ETERNAL_NIGHT
+	 90, // CUSTOMWEATHER_ETERNAL_NIGHT
 	999, // CUSTOMWEATHER_FROST
 	999, // CUSTOMWEATHER_HOT_WIND
 	999, // CUSTOMWEATHER_MYSTERIOUS_WIND
@@ -539,12 +540,15 @@ void loadExtraCharacters()
 
 	if (!extra)
 		extra = new std::pair<SokuLib::PlayerInfo, SokuLib::PlayerInfo>();
-	do {
-		extra->first.character = static_cast<SokuLib::Character>(sokuRand(SokuLib::CHARACTER_RANDOM));
-	} while (SokuLib::rightChar > SokuLib::CHARACTER_RANDOM && soku2BaseCharacters[SokuLib::rightChar] == extra->second.character);
-	do {
-		extra->second.character = static_cast<SokuLib::Character>(sokuRand(SokuLib::CHARACTER_RANDOM));
-	} while (SokuLib::rightChar > SokuLib::CHARACTER_RANDOM && soku2BaseCharacters[SokuLib::rightChar] == extra->second.character);
+
+	extra->first.character = static_cast<SokuLib::Character>(sokuRand(SokuLib::CHARACTER_RANDOM));
+	if (SokuLib::leftChar > SokuLib::CHARACTER_RANDOM && soku2BaseCharacters[SokuLib::leftChar] == extra->first.character)
+		extra->first.character = static_cast<SokuLib::Character>((extra->first.character + 1) % SokuLib::CHARACTER_RANDOM);
+
+	extra->second.character = static_cast<SokuLib::Character>(sokuRand(SokuLib::CHARACTER_RANDOM));
+	if (SokuLib::rightChar > SokuLib::CHARACTER_RANDOM && soku2BaseCharacters[SokuLib::rightChar] == extra->second.character)
+		extra->second.character = static_cast<SokuLib::Character>((extra->second.character + 1) % SokuLib::CHARACTER_RANDOM);
+
 	extra->first.palette = 0;
 	extra->second.palette = extra->first.character == extra->second.character;
 	extra->second.isRight = true;
@@ -791,7 +795,7 @@ int __fastcall CBattleManager_OnMatchProcess(SokuLib::BattleManager *This)
 	} else
 		timeStopLeft = 0;
 
-	//desertMirageSwap(This);
+	desertMirageSwap(This);
 	for (int i = 0 ; i < 2; i++) {
 		auto chr = dataMgr->players[i];
 		auto weather = chr->effectiveWeather;
@@ -805,7 +809,7 @@ int __fastcall CBattleManager_OnMatchProcess(SokuLib::BattleManager *This)
 					characterAlpha[i] = 255;
 				else
 					characterAlpha[i] += 5;
-				if (SokuLib::mainMode == SokuLib::BATTLE_MODE_VSWATCH)
+				if (SokuLib::mainMode == SokuLib::BATTLE_MODE_VSWATCH || SokuLib::subMode == SokuLib::BATTLE_SUBMODE_REPLAY)
 					chr->objectBase.renderInfos.color.a = (100 + (characterAlpha[i] * 155/ 255));
 				else
 					//chr->objectBase.renderInfos.color.a = (100 + (characterAlpha[i] * 155/ 255));
@@ -816,7 +820,7 @@ int __fastcall CBattleManager_OnMatchProcess(SokuLib::BattleManager *This)
 				characterAlpha[i] = 0;
 			else
 				characterAlpha[i] -= 5;
-			if (SokuLib::mainMode == SokuLib::BATTLE_MODE_VSWATCH)
+			if (SokuLib::mainMode == SokuLib::BATTLE_MODE_VSWATCH || SokuLib::subMode != SokuLib::BATTLE_SUBMODE_REPLAY)
 				chr->objectBase.renderInfos.color.a = (100 + (characterAlpha[i] * 155/ 255));
 			else
 				//chr->objectBase.renderInfos.color.a = (100 + (characterAlpha[i] * 155/ 255));
@@ -1146,7 +1150,7 @@ int __fastcall onHudRender(CInfoManager *This)
 {
 	int ret = 0;
 
-	if (SokuLib::mainMode != SokuLib::BATTLE_MODE_VSWATCH) {
+	if (SokuLib::mainMode != SokuLib::BATTLE_MODE_VSWATCH && SokuLib::subMode != SokuLib::BATTLE_SUBMODE_REPLAY) {
 		auto &player = *(SokuLib::mainMode == SokuLib::BATTLE_MODE_VSSERVER ? This->p2State : This->p1State).player;
 
 		viewWindow.setPosition(
@@ -1154,9 +1158,6 @@ int __fastcall onHudRender(CInfoManager *This)
 			viewWindow.texture.getSize() / 2 -
 			SokuLib::Vector2i{0, 100}
 		);
-		// We only display the HUD if the view window is not opaque
-		if (viewWindow.tint.a != 255)
-			ret = ogHudRender(This);
 		setRenderMode(1);
 		viewWindow.draw();
 	} else {
@@ -1178,9 +1179,8 @@ int __fastcall onHudRender(CInfoManager *This)
 		);
 		viewWindow.draw();
 		viewWindow.tint.a = a;
-		ret = ogHudRender(This);
 	}
-	return ret;
+	return ogHudRender(This);
 }
 
 // We check if the game version is what we target (in our case, Soku 1.10a).
