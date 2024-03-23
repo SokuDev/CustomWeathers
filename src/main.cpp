@@ -78,11 +78,15 @@ struct GameDataManager {
 	SokuLib::List<SokuLib::CharacterManager*> destroyQueue;
 }; // 0x58
 
+#define WRAP_SIZE 1280
+#define WRAP_LEFT_CORNER 0
+#define WRAP_RIGHT_CORNER 1280
+#define CLONE_DESYNC_DELAY 12
 #define HOT_WIND_FORCED_DAMAGE 750
 #define HOT_WIND_FORCED_DAMAGE_CH 3000
 #define COIN_EFFECT_DURATION 600
 #define DISABLE_VANILLA
-#define FORCE_WEATHER CUSTOMWEATHER_MYSTERIOUS_WIND
+//#define FORCE_WEATHER CUSTOMWEATHER_MISSING_PURPLE_MIST
 #define WEATHER_TIMER_MULTIPLIER 3
 #define MISSING_PURPLE_MIST_SMOOTHING_TIME 30
 
@@ -156,26 +160,61 @@ static int (__thiscall *ogHudRender)(void *);
 #define setRenderMode(mode) ((void (__thiscall *)(int, int))0x404B80)(0x896B4C, mode)
 static const auto sokuRand = reinterpret_cast<int (*)(int)>(0x4099F0);
 static const auto switchWeather = (void (__thiscall *)(unsigned, unsigned))0x4388e0;
-const auto ObjectHandler_SpawnBullet = (void (__thiscall *)(void *This, int action, float x, float y, unsigned char layer, unsigned color, float *extraData, int dataSize))0x46EB30;
+const auto ObjectHandler_SpawnBullet = (void (__thiscall *)(void *This, int action, float x, float y, unsigned char dir, unsigned color, float *extraData, int dataSize))0x46EB30;
 const auto FUN_00438ce0 = reinterpret_cast<void (__thiscall *)(void *, unsigned, float, float, unsigned, unsigned)>(0x438CE0);
 
 static CInfoManager *&hud = *(CInfoManager **)0x8985E8;
 static GameDataManager*& dataMgr = *(GameDataManager**)SokuLib::ADDR_GAME_DATA_MANAGER;
 
 struct CloneInfo {
+	SokuLib::SpriteEx sprite;
+	SokuLib::FrameData *img;
 	SokuLib::FrameData *data;
 	SokuLib::Vector2f pos;
-	unsigned char hitBoxCount;
-	unsigned char hurtBoxCount;
-	SokuLib::Box hitboxes[5];
-	SokuLib::Box hurtboxes[5];
-	SokuLib::RotationBox *hitBoxesRotation[5];
-	SokuLib::RotationBox *hurtBoxesRotation[5];
+	SokuLib::Vector2f center;
+	SokuLib::RenderInfo infos;
+	unsigned short totalFrames;
+	SokuLib::Direction dir;
+	unsigned char hitCount;
+	unsigned char hasHit;
+
+	CloneInfo(SokuLib::ObjectManager *obj)
+	{
+		this->sprite = obj->sprite;
+		this->center = obj->center;
+		this->hasHit = obj->offset_0x18C[4];
+		this->dir = obj->direction;
+		this->totalFrames = obj->frameCount;
+		this->hitCount = obj->hitCount;
+		this->img = obj->image;
+		this->data = obj->frameData;
+		this->pos = obj->position;
+		this->infos = obj->renderInfos;
+	};
+
+	void restore(SokuLib::ObjectManager *obj)
+	{
+		obj->sprite = this->sprite;
+		obj->center = this->center;
+		obj->offset_0x18C[4] = this->hasHit;
+		obj->direction = this->dir;
+		obj->hitCount = this->hitCount;
+		obj->image = this->img;
+		obj->frameData = SokuLib::New<SokuLib::FrameData>(sizeof(SokuLib::v2::CharacterFrameData));
+		memcpy(obj->frameData, this->data, sizeof(SokuLib::v2::CharacterFrameData));
+		((SokuLib::v2::CharacterFrameData *)obj->frameData)->onBlockPStun = 0;
+		((SokuLib::v2::CharacterFrameData *)obj->frameData)->onHitPStun = 0;
+		obj->position = this->pos;
+		obj->renderInfos = this->infos;
+	};
 };
 
+static bool clonesSpawned = false;
 static bool needCleaning = false;
 static bool init = false;
 static SokuLib::SWRFont font;
+static unsigned char clonesAlpha[2] = {0, 0};
+static std::list<CloneInfo> lastClones[2];
 static unsigned char characterAlpha[2] = {255, 255};
 static unsigned char characterSizeCtr[2] = {0, 0};
 static unsigned char characterSkills[2][16] = {{0}, {0}};
@@ -200,27 +239,29 @@ public:
 	}
 
 	CloneObject() {
-		printf("CloneObject %p\n", this);
-	}
-
-	~CloneObject() override {
-		printf("~CloneObject: %p\n", this);
-	}
+		this->v1()->image = nullptr;
+		this->v1()->frameData = nullptr;
+	};
+	~CloneObject() override = default;
 
 	void setActionSequence(short action, short seq) override {
-		printf("setActionSequence %p %i %i\n", this, action, seq);
+		printf("setActionSequence: %p %i %i\n", this, action, seq);
 	}
 
 	bool setAction(short action) override {
-		printf("setAction %p %i\n", this, action);
-		printf("owner %p %p\n", this->v1()->owner, this->v1()->owner2);
-		this->v1()->image = this->v1()->owner->objectBase.frameData;
-		this->v1()->frameData = this->v1()->owner->objectBase.frameData;
+		if (!this->v1()->image)
+			this->v1()->image = this->v1()->owner->objectBase.image;
+		if (!this->v1()->frameData) {
+			this->v1()->frameData = SokuLib::New<SokuLib::FrameData>(sizeof(SokuLib::v2::CharacterFrameData));
+			memcpy(this->v1()->frameData, this->v1()->owner->objectBase.frameData, sizeof(SokuLib::v2::CharacterFrameData));
+			((SokuLib::v2::CharacterFrameData *)this->v1()->frameData)->onBlockPStun = 0;
+			((SokuLib::v2::CharacterFrameData *)this->v1()->frameData)->onHitPStun = 0;
+		}
 		return true;
 	}
 
 	void setSequence(short seq) override {
-		printf("setSequence %p %i\n", this, seq);
+		printf("setSequence: %p %i\n", this, seq);
 	}
 
 	void resetSequence() override {
@@ -237,7 +278,7 @@ public:
 	}
 
 	void setPose(short pose) override {
-		printf("setPose %p %i\n", this, pose);
+		printf("setPose: %p %i\n", this, pose);
 	}
 
 	bool nextPose() override {
@@ -250,8 +291,25 @@ public:
 	}
 
 	void update() override {
-		printf("update: %p\n", this);
-		this->frameData = reinterpret_cast<SokuLib::v2::FrameData *>(this->v1()->owner->objectBase.frameData);
+		int index = &SokuLib::getBattleMgr().leftCharacterManager == this->v1()->owner;
+
+		lastClones[index].emplace_back(&this->v1()->owner->objectBase);
+		if (lastClones[index].size() > CLONE_DESYNC_DELAY)
+			lastClones[index].pop_front();
+		lastClones[index].front().restore(this->v1());
+		if (this->v1()->owner->effectiveWeather == CUSTOMWEATHER_ILLUSION_MIST) {
+			if (clonesAlpha[index] < 0x80)
+				clonesAlpha[index] += 4;
+			memset(this->v1()->frameData->offset_0x58, 0, 0x10);
+		} else {
+			if (clonesAlpha[index] != 0)
+				clonesAlpha[index] -= 4;
+			memset(this->v1()->frameData->offset_0x58, 0, 0x50);
+			this->v1()->hitBoxCount = 0;
+			this->v1()->hurtBoxCount = 0;
+		}
+		this->renderInfos.color = SokuLib::Color{0xFF, 0xFF, 0xFF, clonesAlpha[index]};
+		this->renderInfos.shaderType = 1;
 	}
 
 	void render() override {
@@ -259,15 +317,18 @@ public:
 	}
 
 	void render2() override {
-		printf("render2: %p\n", this);
+		//printf("render2: %p\n", this);
+		((void (__thiscall *)(SokuLib::v2::AnimationObject *))0x439190)(this);
 	}
 
 	void applyTransform() override {
-		printf("applyTransform: %p\n", this);
+		//printf("applyTransform: %p\n", this);
+		((void (__thiscall *)(SokuLib::v2::AnimationObject *))0x438E00)(this);
 	}
 
 	void onRenderEnd() override {
-		printf("onRenderEnd: %p\n", this);
+		//printf("onRenderEnd: %p\n", this);
+		((void (__thiscall *)(SokuLib::v2::AnimationObject *))0x439040)(this);
 	}
 
 	virtual void fct1() {
@@ -275,7 +336,7 @@ public:
 	}
 
 	virtual void fct2() {
-		printf("fct2: %p\n", this);
+		// printf("fct2: %p\n", this);
 	}
 
 	virtual void fct3(int param_1, int param_2, int param_3, int param_4, int param_5, int param_6, int param_7) {
@@ -297,10 +358,6 @@ T *__fastcall create(T *This)
 template<typename T>
 void pushToList(SokuLib::CharacterManager &chr)
 {
-	float t[4] = {0, 0, 0, 0};
-
-	ObjectHandler_SpawnBullet(&chr, 800, 0, 0, 1, 0xFFFFFFFF, t, 4);
-
 	T c;
 	auto vt = *(unsigned *)&c;
 	DWORD old;
@@ -327,6 +384,11 @@ void pushToList(SokuLib::CharacterManager &chr)
 
 class SavedFrame {
 private:
+	bool illusionMist_clonesSpawned;
+	unsigned char illusionMist_clonesAlpha1;
+	unsigned char illusionMist_clonesAlpha2;
+	std::list<CloneInfo> illusionMist_lastClones1;
+	std::list<CloneInfo> illusionMist_lastClones2;
 	bool desertMirage_swapped1;
 	bool desertMirage_swapped2;
 	unsigned char impassableSmog_characterAlpha1;
@@ -343,6 +405,11 @@ private:
 public:
 	SavedFrame()
 	{
+		this->illusionMist_clonesSpawned = clonesSpawned;
+		this->illusionMist_clonesAlpha1 = clonesAlpha[0];
+		this->illusionMist_clonesAlpha2 = clonesAlpha[1];
+		this->illusionMist_lastClones1 = lastClones[0];
+		this->illusionMist_lastClones2 = lastClones[1];
 		this->desertMirage_swapped1 = characterBackup[0] != nullptr;
 		this->desertMirage_swapped2 = characterBackup[1] != nullptr;
 		this->impassableSmog_characterAlpha1 = characterAlpha[0];
@@ -390,6 +457,11 @@ public:
 
 	void restorePost()
 	{
+		clonesSpawned = this->illusionMist_clonesSpawned;
+		clonesAlpha[0] = this->illusionMist_clonesAlpha1;
+		clonesAlpha[1] = this->illusionMist_clonesAlpha2;
+		lastClones[0] = this->illusionMist_lastClones1;
+		lastClones[1] = this->illusionMist_lastClones2;
 		memcpy(characterSkills[0], this->haar_characterSkills1, sizeof(this->haar_characterSkills1));
 		memcpy(characterSkills[1], this->haar_characterSkills2, sizeof(this->haar_characterSkills2));
 		lastInputs[0] = this->blizzard_lastInputs1;
@@ -659,11 +731,11 @@ int __fastcall CBattleManager_OnMatchProcess(SokuLib::BattleManager *This)
 		This->rightCharacterManager.effectiveWeather
 	};
 	auto ret = (This->*ogBattleMgrOnMatchProcess)();
-	static bool b = false;
 
-	if (!b) {
-		b = true;
+	if (!clonesSpawned) {
+		clonesSpawned = true;
 		pushToList<CloneObject>(This->leftCharacterManager);
+		pushToList<CloneObject>(This->rightCharacterManager);
 	}
 	for (int i = 0; i < 2; i++) {
 		if (dataMgr->players[i]->effectiveWeather == CUSTOMWEATHER_ANTINOMY_OF_COMMON_WEATHER) {
@@ -772,6 +844,11 @@ void cleanup()
 	characterSizeCtr[1] = 0;
 	lastInputs[0].clear();
 	lastInputs[1].clear();
+	lastClones[0].clear();
+	lastClones[1].clear();
+	clonesAlpha[0] = 0;
+	clonesAlpha[1] = 0;
+	clonesSpawned = false;
 	memset(characterSkills, 0, sizeof(characterSkills));
 	needCleaning = false;
 	puts("Done");
@@ -1163,15 +1240,15 @@ void weatherEffectSet()
 
 	switch (weather) {
 	case CUSTOMWEATHER_MYSTERIOUS_WIND:
-		if (This->objectBase.position.x < -60)
-			This->objectBase.position.x += 1200;
-		else if (This->objectBase.position.x > 1340)
-			This->objectBase.position.x -= 1200;
+		if (This->objectBase.position.x < WRAP_LEFT_CORNER)
+			This->objectBase.position.x += WRAP_SIZE;
+		else if (This->objectBase.position.x > WRAP_RIGHT_CORNER)
+			This->objectBase.position.x -= WRAP_SIZE;
 		for (auto &obj : This->objects.list.vector()) {
-			if (obj->position.x < -60)
-				obj->position.x += 1200;
-			else if (obj->position.x > 1340)
-				obj->position.x -= 1200;
+			if (obj->position.x < WRAP_LEFT_CORNER)
+				obj->position.x += WRAP_SIZE;
+			else if (obj->position.x > WRAP_RIGHT_CORNER)
+				obj->position.x -= WRAP_SIZE;
 		}
 		break;
 	case CUSTOMWEATHER_HOT_WIND:
@@ -1756,9 +1833,9 @@ void __fastcall renderObjectLayer(GameDataManager *This, int, int layer)
 				continue;
 			}
 			if (obj->position.x < 640)
-				obj->position.x += 1240;
+				obj->position.x += WRAP_SIZE;
 			else
-				obj->position.x -= 1240;
+				obj->position.x -= WRAP_SIZE;
 		}
 	}
 	ogRenderObjectLayer(This, layer);
@@ -1783,9 +1860,9 @@ void __fastcall renderCharacters(GameDataManager *This)
 			continue;
 		}
 		if (This->players[i]->objectBase.position.x < 640)
-			This->players[i]->objectBase.position.x += 1240;
+			This->players[i]->objectBase.position.x += WRAP_SIZE;
 		else
-			This->players[i]->objectBase.position.x -= 1240;
+			This->players[i]->objectBase.position.x -= WRAP_SIZE;
 	}
 	ogRenderCharacters(This);
 
@@ -1800,64 +1877,46 @@ void __fastcall CBattleManager_HandleCollision(SokuLib::BattleManager *This, int
 	ogBattleMgrHandleCollision(This, object, character);
 	if (character->effectiveWeather == CUSTOMWEATHER_MYSTERIOUS_WIND) {
 		auto p = character->objectBase.position;
-		auto hi = character->objectBase.hitBoxes;
-		auto hu = character->objectBase.hurtBoxes;
+		SokuLib::Box hu[5];
 
+		memcpy(hu, character->objectBase.hurtBoxes, sizeof(object->hurtBoxes));
 		if (character->objectBase.position.x < 640) {
-			character->objectBase.position.x += 1200;
+			character->objectBase.position.x += WRAP_SIZE;
 			for (auto &h : character->objectBase.hurtBoxes) {
-				h.left += 1200;
-				h.right += 1200;
-			}
-			for (auto &h : character->objectBase.hitBoxes) {
-				h.left += 1200;
-				h.right += 1200;
+				h.left += WRAP_SIZE;
+				h.right += WRAP_SIZE;
 			}
 		} else {
-			character->objectBase.position.x -= 1200;
+			character->objectBase.position.x -= WRAP_SIZE;
 			for (auto &h : character->objectBase.hurtBoxes) {
-				h.left -= 1200;
-				h.right -= 1200;
-			}
-			for (auto &h : character->objectBase.hitBoxes) {
-				h.left -= 1200;
-				h.right -= 1200;
+				h.left -= WRAP_SIZE;
+				h.right -= WRAP_SIZE;
 			}
 		}
 		ogBattleMgrHandleCollision(This, object, character);
 		character->objectBase.position = p;
-		memcpy(&character->objectBase.hitBoxes, hi, sizeof(object->hitBoxes));
-		memcpy(&character->objectBase.hurtBoxes, hu, sizeof(object->hurtBoxes));
+		memcpy(character->objectBase.hurtBoxes, hu, sizeof(object->hurtBoxes));
 	} else if (object->owner->effectiveWeather == CUSTOMWEATHER_MYSTERIOUS_WIND) {
 		auto p = object->position;
-		auto hi = object->hitBoxes;
-		auto hu = object->hurtBoxes;
+		SokuLib::Box hi[5];
 
+		memcpy(hi, object->hitBoxes, sizeof(object->hitBoxes));
 		if (object->position.x < 640) {
-			object->position.x += 1200;
-			for (auto &h : object->hurtBoxes) {
-				h.left += 1200;
-				h.right += 1200;
-			}
+			object->position.x += WRAP_SIZE;
 			for (auto &h : object->hitBoxes) {
-				h.left += 1200;
-				h.right += 1200;
+				h.left += WRAP_SIZE;
+				h.right += WRAP_SIZE;
 			}
 		} else {
-			object->position.x -= 1200;
-			for (auto &h : object->hurtBoxes) {
-				h.left -= 1200;
-				h.right -= 1200;
-			}
+			object->position.x -= WRAP_SIZE;
 			for (auto &h : object->hitBoxes) {
-				h.left -= 1200;
-				h.right -= 1200;
+				h.left -= WRAP_SIZE;
+				h.right -= WRAP_SIZE;
 			}
 		}
 		ogBattleMgrHandleCollision(This, object, character);
 		object->position = p;
-		memcpy(&object->hitBoxes, hi, sizeof(object->hitBoxes));
-		memcpy(&object->hurtBoxes, hu, sizeof(object->hurtBoxes));
+		memcpy(object->hitBoxes, hi, sizeof(object->hitBoxes));
 	}
 }
 
@@ -2020,10 +2079,6 @@ extern "C" __declspec(dllexport) bool Initialize(HMODULE hMyModule, HMODULE hPar
 	VirtualProtect((PVOID)TEXT_SECTION_OFFSET, TEXT_SECTION_SIZE, old, &old);
 
 	FlushInstructionCache(GetCurrentProcess(), nullptr, 0);
-
-	CloneObject o;
-
-	printf("%p %p\n", *(void **)&o, (*(void ***)&o)[16]);
 	return true;
 }
 
