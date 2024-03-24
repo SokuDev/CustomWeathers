@@ -86,7 +86,7 @@ struct GameDataManager {
 #define HOT_WIND_FORCED_DAMAGE_CH 3000
 #define COIN_EFFECT_DURATION 600
 #define DISABLE_VANILLA
-//#define FORCE_WEATHER CUSTOMWEATHER_MYSTERIOUS_WIND
+// #define FORCE_WEATHER CUSTOMWEATHER_FROST
 #define WEATHER_TIMER_MULTIPLIER 3
 #define MISSING_PURPLE_MIST_SMOOTHING_TIME 30
 
@@ -155,6 +155,7 @@ static void (SokuLib::BattleManager::*ogBattleMgrOnRender)();
 static int (SokuLib::SelectClient::*ogSelectClientOnProcess)();
 static int (SokuLib::SelectServer::*ogSelectServerOnProcess)();
 static int (SokuLib::Select::*ogSelectOnProcess)();
+static int (SokuLib::LoadingWatch::*ogLoadingWatchOnProcess)();
 static int (__thiscall *ogHudRender)(void *);
 
 #define setRenderMode(mode) ((void (__thiscall *)(int, int))0x404B80)(0x896B4C, mode)
@@ -225,6 +226,9 @@ static std::pair<SokuLib::PlayerInfo, SokuLib::PlayerInfo> *extra = nullptr;
 static SokuLib::DrawUtils::Sprite viewWindow;
 static std::list<SokuLib::KeyInput> lastInputs[2];
 static unsigned short timeStopLeft = 0;
+static float zeroFive = 0.5;
+static float frostSlide = 0.1;
+
 
 auto allocAndStoreArray3 = (void ***(__thiscall *)(void *, void *, void *))0x6FB680;
 auto checkListTooLong = (void (__thiscall *)(void *, unsigned))0x47D030;
@@ -680,29 +684,67 @@ int selectRandomWeather(bool includeAurora)
 #endif
 }
 
-void __fastcall handleSwitchWeather(unsigned obj, SokuLib::Weather weatherId)
+int selectNextWeather(SokuLib::Weather weatherId, bool noAurora)
 {
 #ifdef FORCE_WEATHER
-	switchWeather(obj, FORCE_WEATHER);
+	return FORCE_WEATHER;
 #elif defined(DISABLE_VANILLA)
 	if (weatherId == SokuLib::WEATHER_TWILIGHT)
-		return switchWeather(obj, SokuLib::WEATHER_CLEAR + 1);
-	if (weatherId == SokuLib::WEATHER_AURORA)
-		return switchWeather(obj, SokuLib::WEATHER_TWILIGHT);
+		return SokuLib::WEATHER_CLEAR + 1;
 	if (weatherId == (CUSTOMWEATHER_SIZE - 1))
-		return switchWeather(obj, SokuLib::WEATHER_AURORA);
-	return switchWeather(obj, weatherId + 1);
+		return noAurora ? SokuLib::WEATHER_TWILIGHT : SokuLib::WEATHER_AURORA;
+	if (weatherId == SokuLib::WEATHER_AURORA)
+		return SokuLib::WEATHER_TWILIGHT;
+	if (noAurora && weatherId == (CUSTOMWEATHER_SHOOTING_STAR - 1))
+		return CUSTOMWEATHER_SHOOTING_STAR + 1;
+	return weatherId + 1;
 #else
 	if (weatherId == SokuLib::WEATHER_MONSOON)
-		return switchWeather(obj, SokuLib::WEATHER_TWILIGHT);
+		return SokuLib::WEATHER_TWILIGHT;
 	if (weatherId == SokuLib::WEATHER_TWILIGHT)
-		return switchWeather(obj, SokuLib::WEATHER_CLEAR + 1);
-	if (weatherId == SokuLib::WEATHER_AURORA)
-		return switchWeather(obj, SokuLib::WEATHER_SUNNY);
+		return SokuLib::WEATHER_CLEAR + 1;
 	if (weatherId == (CUSTOMWEATHER_SIZE - 1))
-		return switchWeather(obj, SokuLib::WEATHER_AURORA);
-	return switchWeather(obj, weatherId + 1);
+		return noAurora ? SokuLib::WEATHER_SUNNY : SokuLib::WEATHER_AURORA;
+	if (weatherId == SokuLib::WEATHER_AURORA)
+		return SokuLib::WEATHER_SUNNY;
+	if (noAurora && weatherId == (CUSTOMWEATHER_SHOOTING_STAR - 1))
+		return CUSTOMWEATHER_SHOOTING_STAR + 1;
+	return weatherId + 1;
 #endif
+}
+
+int selectPreviousWeather(SokuLib::Weather weatherId, bool noAurora)
+{
+#ifdef FORCE_WEATHER
+	return FORCE_WEATHER;
+#elif defined(DISABLE_VANILLA)
+	if (weatherId == (SokuLib::WEATHER_CLEAR + 1))
+		return SokuLib::WEATHER_TWILIGHT;
+	if (weatherId == SokuLib::WEATHER_TWILIGHT)
+		return noAurora ? (CUSTOMWEATHER_SIZE - 1) : SokuLib::WEATHER_AURORA;
+	if (weatherId == SokuLib::WEATHER_AURORA)
+		return CUSTOMWEATHER_SIZE - 1;
+	if (noAurora && weatherId == (CUSTOMWEATHER_SHOOTING_STAR + 1))
+		return CUSTOMWEATHER_SHOOTING_STAR - 1;
+	return weatherId - 1;
+#else
+	if (weatherId == SokuLib::WEATHER_TWILIGHT)
+		return SokuLib::WEATHER_MONSOON;
+	if (weatherId == (SokuLib::WEATHER_CLEAR + 1))
+		return SokuLib::WEATHER_TWILIGHT;
+	if (weatherId == SokuLib::WEATHER_SUNNY)
+		return noAurora ? (CUSTOMWEATHER_SIZE - 1) : SokuLib::WEATHER_AURORA;
+	if (weatherId == SokuLib::WEATHER_AURORA)
+		return CUSTOMWEATHER_SIZE - 1;
+	if (noAurora && weatherId == (CUSTOMWEATHER_SHOOTING_STAR + 1))
+		return CUSTOMWEATHER_SHOOTING_STAR - 1;
+	return weatherId - 1;
+#endif
+}
+
+void __fastcall handleSwitchWeather(unsigned obj, SokuLib::Weather weatherId)
+{
+	switchWeather(obj, selectNextWeather(weatherId, false));
 }
 
 void __declspec(naked) handleSwitchWeather_hook()
@@ -820,7 +862,7 @@ int __fastcall CBattleManager_OnMatchProcess(SokuLib::BattleManager *This)
 				characterAlpha[i] = 0;
 			else
 				characterAlpha[i] -= 5;
-			if (SokuLib::mainMode == SokuLib::BATTLE_MODE_VSWATCH || SokuLib::subMode != SokuLib::BATTLE_SUBMODE_REPLAY)
+			if (SokuLib::mainMode == SokuLib::BATTLE_MODE_VSWATCH || SokuLib::subMode == SokuLib::BATTLE_SUBMODE_REPLAY)
 				chr->objectBase.renderInfos.color.a = (100 + (characterAlpha[i] * 155/ 255));
 			else
 				//chr->objectBase.renderInfos.color.a = (100 + (characterAlpha[i] * 155/ 255));
@@ -895,6 +937,13 @@ int __fastcall CSelect_OnProcess(SokuLib::Select *This)
 	if (needCleaning)
 		cleanup();
 	return (This->*ogSelectOnProcess)();
+}
+
+int __fastcall CLoadingWatch_OnProcess(SokuLib::LoadingWatch *This)
+{
+	if (needCleaning)
+		cleanup();
+	return (This->*ogLoadingWatchOnProcess)();
 }
 
 void checkCiF()
@@ -1032,9 +1081,14 @@ unsigned infoEffectUpdateSwitch_extra(SokuLib::v2::InfoEffectObject *obj, unsign
 	case 0:
 		if (obj->frameState.currentFrame == 0 && SokuLib::weatherCounter >= weatherTimes[weather] - 100) {
 			FUN_006dcdf0(startObj + 3, obj->position.x, obj->position.y - 10.0f, 1, 1);
-			if (SokuLib::displayedWeather == weather && SokuLib::activeWeather != SokuLib::WEATHER_CLEAR)
-				FUN_006dcdf0(startObj + 5, 320.0, 120.0, 1, 1);
-		}
+			if (SokuLib::displayedWeather == weather && SokuLib::activeWeather != SokuLib::WEATHER_CLEAR) {
+				if (SokuLib::displayedWeather == CUSTOMWEATHER_REVERSE_FIELD)
+					FUN_006dcdf0(startObj + 5, 320.0, 140.0, 1, 1);
+				else
+					FUN_006dcdf0(startObj + 5, 320.0, 120.0, 1, 1);
+			}
+		} else if (obj->frameState.currentFrame == 0 && SokuLib::displayedWeather == CUSTOMWEATHER_SHOOTING_STAR)
+			FUN_006dcdf0(startObj + 3, obj->position.x, obj->position.y - 10.0f, 1, 1);
 		if (obj->unknown174 != 0) {
 			if (obj->renderInfos.color.a < 11)
 				return 0x6D87B3;
@@ -1069,7 +1123,9 @@ unsigned infoEffectUpdateSwitch_extra(SokuLib::v2::InfoEffectObject *obj, unsign
 		else
 			obj->renderInfos.color.a += 10;
 		if (action % 10 == 3)
-			infoEffectUpdateSwitch_bool = SokuLib::displayedWeatherOrb == weather;
+				infoEffectUpdateSwitch_bool = SokuLib::displayedWeatherOrb == weather;
+		else if (weather == CUSTOMWEATHER_REVERSE_FIELD)
+			infoEffectUpdateSwitch_bool = SokuLib::displayedWeather == weather && SokuLib::activeWeather == SokuLib::WEATHER_CLEAR;
 		else
 			infoEffectUpdateSwitch_bool = SokuLib::displayedWeather == weather;
 		return 0x6D879E;
@@ -1980,6 +2036,76 @@ bool sameFctCall(unsigned addr1, unsigned addr2)
 	return (*(unsigned *)(addr1 + 1) + addr1 + 5) == (*(unsigned *)(addr2 + 1) + addr2 + 5);
 }
 
+float frostTable[] {
+	4.5 / 60.f, // CHARACTER_REIMU
+	6   / 60.f, // CHARACTER_MARISA
+	6   / 60.f, // CHARACTER_SAKUYA
+	6   / 60.f, // CHARACTER_ALICE
+	4   / 60.f, // CHARACTER_PATCHOULI
+	4   / 60.f, // CHARACTER_YOUMU
+	6.5 / 60.f, // CHARACTER_REMILIA
+	4   / 60.f, // CHARACTER_YUYUKO
+	4.5 / 60.f, // CHARACTER_YUKARI
+	5.5 / 60.f, // CHARACTER_SUIKA
+	4   / 60.f, // CHARACTER_REISEN
+	5.5 / 60.f, // CHARACTER_AYA
+	4.5 / 60.f, // CHARACTER_KOMACHI
+	2.5 / 60.f, // CHARACTER_IKU
+	4.5 / 60.f, // CHARACTER_TENSHI
+	6   / 60.f, // CHARACTER_SANAE
+	6.5 / 60.f, // CHARACTER_CIRNO
+	7   / 60.f, // CHARACTER_MEILING
+	3   / 60.f, // CHARACTER_UTSUHO
+	6   / 60.f, // CHARACTER_SUWAKO
+	0   / 60.f, // CHARACTER_RANDOM
+	0   / 60.f, // CHARACTER_NAMAZU
+	4.5 / 60.f, // CHARACTER_MOMIJI
+	4   / 60.f, // CHARACTER_CLOWNPIECE
+	6.5 / 60.f, // CHARACTER_FLANDRE
+	6.5 / 60.f, // CHARACTER_ORIN
+	3   / 60.f, // CHARACTER_YUUKA
+	4   / 60.f, // CHARACTER_KAGUYA
+	5.5 / 60.f, // CHARACTER_MOKOU
+	2.5 / 60.f, // CHARACTER_MIMA
+	4.5 / 60.f, // CHARACTER_SHOU
+	5.5 / 60.f, // CHARACTER_MURASA
+	4   / 60.f, // CHARACTER_SEKIBANKI
+	4   / 60.f, // CHARACTER_SATORI
+	6   / 60.f, // CHARACTER_RAN
+};
+
+void __declspec(naked) slideAdd()
+{
+	__asm {
+		CMP [ESI + 0x52C], CUSTOMWEATHER_FROST
+		JNZ normal
+
+		MOVSX EAX, byte ptr [ESI + 0x34C]
+		FADD dword ptr [frostTable + EAX * 4]
+		RET
+
+	normal:
+		FADD dword ptr [zeroFive]
+		RET
+	}
+}
+
+void __declspec(naked) slideSub()
+{
+	__asm {
+		CMP [ESI + 0x52C], CUSTOMWEATHER_FROST
+		JNZ normal
+
+		MOVSX EAX, byte ptr [ESI + 0x34C]
+		FSUB dword ptr [frostTable + EAX * 4]
+		RET
+
+	normal:
+		FSUB dword ptr [zeroFive]
+		RET
+	}
+}
+
 // Called when the mod loader is ready to initialize this module.
 // All hooks should be placed here. It's also a good moment to load settings from the ini.
 extern "C" __declspec(dllexport) bool Initialize(HMODULE hMyModule, HMODULE hParentModule)
@@ -2034,6 +2160,7 @@ extern "C" __declspec(dllexport) bool Initialize(HMODULE hMyModule, HMODULE hPar
 	my_assert(sameFctCall(0x47A91D, 0x47A99B));
 	VirtualProtect((PVOID)RDATA_SECTION_OFFSET, RDATA_SECTION_SIZE, PAGE_EXECUTE_WRITECOPY, &old);
 	ogBattleMgrDestructor = SokuLib::TamperDword(&SokuLib::VTable_BattleManager.destructor, CBattleManager_Destructor);
+	ogLoadingWatchOnProcess = SokuLib::TamperDword(&SokuLib::VTable_LoadingWatch.onProcess, CLoadingWatch_OnProcess);
 	ogSelectOnProcess = SokuLib::TamperDword(&SokuLib::VTable_Select.onProcess, CSelect_OnProcess);
 	ogSelectClientOnProcess = SokuLib::TamperDword(&SokuLib::VTable_SelectClient.onProcess, CSelectCL_OnProcess);
 	ogSelectServerOnProcess = SokuLib::TamperDword(&SokuLib::VTable_SelectServer.onProcess, CSelectSV_OnProcess);
@@ -2094,6 +2221,37 @@ extern "C" __declspec(dllexport) bool Initialize(HMODULE hMyModule, HMODULE hPar
 	*(char *)0x46357D = 0x90;
 	*(char *)0x46357E = 0x90;
 
+	// Frost sliding
+	std::pair<unsigned, unsigned> slidingAddresses[] = {
+		{ 0x490C6E, 0x490C28 }, // Reimu
+		{ 0x4BDE67, 0x4BDE21 }, // Marisa
+		{ 0x4E7B17, 0x4E7AD1 }, // Sakuya
+		{ 0x510647, 0x510601 }, // Alice
+		{ 0x541FB3, 0x541F6D }, // Patchouli
+		{ 0x56CD8E, 0x56CD48 }, // Youmu
+		{ 0x587C73, 0x587C2D }, // Remilia
+		{ 0x5A5A8A, 0x5A5A45 }, // Yuyuko
+		{ 0x5CAD3E, 0x5CACF9 }, // Yukari
+		{ 0x5EE877, 0x5EE831 }, // Suika
+		{ 0x61E0E4, 0x61E09E }, // Reisen
+		{ 0x665474, 0x66542E }, // Aya
+		{ 0x644BB5, 0x644B6F }, // Komachi
+		{ 0x687CF9, 0x687CB4 }, // Iku
+		{ 0x6AB7D3, 0x6AB78D }, // Tenshi
+		{ 0x73CBA2, 0x73CB5C }, // Sanae
+		{ 0x6E378C, 0x6E3746 }, // Cirno
+		{ 0x71AD33, 0x71ACED }, // Meiling
+		{ 0x79FC0B, 0x79FBC5 }, // Utsuho
+		{ 0x766883, 0x76683D }  // Suwako
+	};
+
+	for (auto &addrs : slidingAddresses) {
+		SokuLib::TamperNearCall(addrs.first,  slideAdd);
+		*(char *)(addrs.first + 5) = 0x90;
+		SokuLib::TamperNearCall(addrs.second, slideSub);
+		*(char *)(addrs.second + 5) = 0x90;
+	}
+
 	SokuLib::TamperNearJmp(0x469E80, turnAround_hook);
 	*(char *)0x469E85 = 0x90;
 
@@ -2105,6 +2263,68 @@ extern "C" __declspec(dllexport) bool Initialize(HMODULE hMyModule, HMODULE hPar
 	SokuLib::TamperNearCall(0x47AE24, hotWindHitStopHook);
 	memset((void *)0x464A89, 0x90, 10);
 	SokuLib::TamperNearCall(0x464A89, hotWindDamageHook);
+
+	/*
+	 * 0042A649  MOV        EAX,[activeWeather]
+	 * 0042A64E  ADD        EAX,0x12
+	 * 0042A651  CDQ
+	 * 0042A652  MOV        ECX,0x13
+	 * 0042A657  IDIV       ECX
+	 * 0042A659  PUSH       0x1
+	 * 0042A65B  MOV        ECX,ESI
+	 * 0042A65D  PUSH       EDX
+	 * 0042A65E  CALL       activateWeather
+	 *
+	 * Patched to
+	 * 0042A649  MOV        EAX,[activeWeather]
+	 * 0042A64F  PUSH       0x1
+	 * 0042A64E  PUSH       EAX
+	 * 0042A651  CALL       selectPreviousWeather
+	 * 0042A656  ADD        ESP,0x8
+	 * 0042A659  PUSH       0x1
+	 * 0042A65B  MOV        ECX,ESI
+	 * 0042A65D  PUSH       EAX
+	 * 0042A65E  CALL       activateWeather
+	 */
+	*(char *)0x42A64E = 0x6A;
+	*(char *)0x42A64F = 0x01;
+	*(char *)0x42A650 = 0x50;
+	SokuLib::TamperNearCall(0x42A651, selectPreviousWeather);
+	*(char *)0x42A656 = 0x83;
+	*(char *)0x42A657 = 0xC4;
+	*(char *)0x42A658 = 0x08;
+	*(char *)0x42A65D = 0x50;
+
+	/*
+	 * 0042A67B  MOV        EAX,[activeWeather]
+	 * 0042A680  ADD        EAX,0x1
+	 * 0042A683  CDQ
+	 * 0042A684  MOV        ECX,0x13
+	 * 0042A689  IDIV       ECX
+	 * 0042A68B  PUSH       0x1
+	 * 0042A68D  MOV        ECX,ESI
+	 * 0042A68F  PUSH       EDX
+	 * 0042A690  CALL       activateWeather
+	 *
+	 * Patched to
+	 * 0042A67B  MOV        EAX,[activeWeather]
+	 * 0042A681  PUSH       0x1
+	 * 0042A680  PUSH       EAX
+	 * 0042A683  CALL       selectNextWeather
+	 * 0042A688  ADD        ESP,0x8
+	 * 0042A68B  PUSH       0x1
+	 * 0042A68D  MOV        ECX,ESI
+	 * 0042A68F  PUSH       EAX
+	 * 0042A690  CALL       activateWeather
+	 */
+	*(char *)0x42A680 = 0x6A;
+	*(char *)0x42A681 = 0x01;
+	*(char *)0x42A682 = 0x50;
+	SokuLib::TamperNearCall(0x42A683, selectNextWeather);
+	*(char *)0x42A688 = 0x83;
+	*(char *)0x42A689 = 0xC4;
+	*(char *)0x42A68A = 0x08;
+	*(char *)0x42A68F = 0x50;
 
 	og_handDataOperatorBracket = SokuLib::TamperNearJmpOpr(0x48AF7C, checkExtraSystemCards_hook);
 
