@@ -789,6 +789,10 @@ int __fastcall CBattleManager_OnMatchProcess(SokuLib::BattleManager *This)
 	};
 	auto ret = (This->*ogBattleMgrOnMatchProcess)();
 
+	if (This->leftCharacterManager.effectiveWeather == CUSTOMWEATHER_MISSING_PURPLE_MIST)
+		This->leftCharacterManager.objectBase.center.y = 0;
+	if (This->rightCharacterManager.effectiveWeather == CUSTOMWEATHER_MISSING_PURPLE_MIST)
+		This->rightCharacterManager.objectBase.center.y = 0;
 	if (!clonesSpawned) {
 		clonesSpawned = true;
 		pushToList<CloneObject>(This->leftCharacterManager);
@@ -973,7 +977,8 @@ void __fastcall CBattleManager_OnRender(SokuLib::BattleManager *This)
 		players[i]->objectBase.renderInfos.scale *= (1 + (float)characterSizeCtr[i] / MISSING_PURPLE_MIST_SMOOTHING_TIME);
 		for (auto obj : players[i]->objects.list.vector()) {
 			scale[obj] = obj->renderInfos.scale;
-			obj->renderInfos.scale *= (1 + (float) characterSizeCtr[i] / MISSING_PURPLE_MIST_SMOOTHING_TIME);
+			if (!((SokuLib::v2::AnimationObject *)obj)->isGui)
+				obj->renderInfos.scale *= (1 + (float) characterSizeCtr[i] / MISSING_PURPLE_MIST_SMOOTHING_TIME);
 		}
 	}
 	(This->*ogBattleMgrOnRender)();
@@ -1390,7 +1395,7 @@ void modifyBoxes()
 	__asm MOV [This], ESI;
 
 	auto &battleMgr = SokuLib::getBattleMgr();
-	auto index = This->owner == &battleMgr.leftCharacterManager;
+	auto index = This->owner == &battleMgr.rightCharacterManager;
 	auto scale = (1 + (float) characterSizeCtr[index] / MISSING_PURPLE_MIST_SMOOTHING_TIME);
 
 	for (int i = 0; i < This->hurtBoxCount; i++) {
@@ -1679,7 +1684,7 @@ void callFct(SokuLib::CharacterManager *This, int action, float x, float y, int 
 void __fastcall ObjectHandler_SpawnBullet_hook(SokuLib::CharacterManager *This, int, int action, float x, float y, int dir, unsigned color, float *extraData, unsigned extraDataSize)
 {
 	auto &battleMgr = SokuLib::getBattleMgr();
-	auto i = This == &battleMgr.leftCharacterManager;
+	auto i = This == &battleMgr.rightCharacterManager;
 	auto scale = (1 + (float) characterSizeCtr[i] / MISSING_PURPLE_MIST_SMOOTHING_TIME);
 
 	printf("%i %f %f -> ", action, x, y);
