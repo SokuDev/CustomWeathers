@@ -1,12 +1,12 @@
 #include <windows.h>
-#define VER_FILEVERSION             1,0,0,0
-#define VER_FILEVERSION_STR         "1.0\0"
+#define VER_FILEVERSION             1,0,1,0
+#define VER_FILEVERSION_STR         "1.0.1\0"
 
-#define VER_PRODUCTVERSION          1,0,0,0
-#define VER_PRODUCTVERSION_STR      "1.0\0"
+#define VER_PRODUCTVERSION          1,0,1,0
+#define VER_PRODUCTVERSION_STR      "1.0.1\0"
 
 #define VER_COMPANYNAME_STR         "SokuDev\0"
-#define VER_FILEDESCRIPTION_STR     "Example mod for Touhou 12.3\0"
+#define VER_FILEDESCRIPTION_STR     "Changes the default weathers from Touhou 12.3\0"
 #define VER_INTERNALNAME_STR        "CustomWeathers\0"
 #define VER_LEGALCOPYRIGHT_STR      "PinkySmile,SokuDev\0"
 #define VER_LEGALTRADEMARKS1_STR    "\0"
@@ -16,6 +16,9 @@
 
 // Define this to 0 if not a pre release
 #define VER_PRERELEASE VS_FF_PRERELEASE
+// Define this to 0 if loading early is not needed
+//#define VER_EARLY_LOAD 0x40
+#define VER_EARLY_LOAD 0
 
 #ifndef DEBUG
 #define VER_DEBUG                   0
@@ -26,8 +29,8 @@
 VS_VERSION_INFO VERSIONINFO
 FILEVERSION     VER_FILEVERSION
 PRODUCTVERSION  VER_PRODUCTVERSION
-FILEFLAGSMASK   VS_FFI_FILEFLAGSMASK
-FILEFLAGS       (VER_PRERELEASE|VER_DEBUG)
+FILEFLAGSMASK   VS_FFI_FILEFLAGSMASK | VER_EARLY_LOAD
+FILEFLAGS       (VER_PRERELEASE | VER_DEBUG | VER_EARLY_LOAD)
 FILEOS          VOS__WINDOWS32
 FILETYPE        VFT_DLL
 FILESUBTYPE     VFT2_UNKNOWN
