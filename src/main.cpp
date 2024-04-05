@@ -4,6 +4,13 @@
 
 #include <SokuLib.hpp>
 #include <map>
+#include <shlwapi.h>
+#include <algorithm>
+
+#ifndef _DEBUG
+#define puts(...)
+#define printf(...)
+#endif
 
 // Contructor:
 // void FUN_0047f070(HudPlayerState *param_1, char param_1_00, CDesignBase *param_3, CDesignBase *param_4, int param_5)
@@ -85,9 +92,9 @@ struct GameDataManager {
 #define HOT_WIND_FORCED_DAMAGE 750
 #define HOT_WIND_FORCED_DAMAGE_CH 3000
 #define COIN_EFFECT_DURATION 600
-#define DISABLE_VANILLA
+// #define DISABLE_VANILLA
 // #define FORCE_WEATHER CUSTOMWEATHER_FROST
-#define WEATHER_TIMER_MULTIPLIER 3
+// #define WEATHER_TIMER_MULTIPLIER 3
 #define MISSING_PURPLE_MIST_SMOOTHING_TIME 30
 
 enum CustomWeathers {
@@ -111,6 +118,51 @@ enum CustomWeathers {
 	CUSTOMWEATHER_MYSTERIOUS_WIND,
 	CUSTOMWEATHER_SIZE
 };
+
+static std::map<unsigned, std::string> weatherNames{
+	{ SokuLib::WEATHER_SUNNY,                   "Sunny" },
+	{ SokuLib::WEATHER_DRIZZLE,                 "Drizzle" },
+	{ SokuLib::WEATHER_CLOUDY,                  "Cloudy" },
+	{ SokuLib::WEATHER_BLUE_SKY,                "BlueSky" },
+	{ SokuLib::WEATHER_HAIL,                    "Hail" },
+	{ SokuLib::WEATHER_SPRING_HAZE,             "SpringHaze" },
+	{ SokuLib::WEATHER_HEAVY_FOG,               "HeavyFog" },
+	{ SokuLib::WEATHER_SNOW,                    "Snow" },
+	{ SokuLib::WEATHER_SUN_SHOWER,              "SunShower" },
+	{ SokuLib::WEATHER_SPRINKLE,                "Sprinkle" },
+	{ SokuLib::WEATHER_TEMPEST,                 "Tempest" },
+	{ SokuLib::WEATHER_MOUNTAIN_VAPOR,          "MountainVapor" },
+	{ SokuLib::WEATHER_RIVER_MIST,              "RiverMist" },
+	{ SokuLib::WEATHER_TYPHOON,                 "Typhoon" },
+	{ SokuLib::WEATHER_CALM,                    "Calm" },
+	{ SokuLib::WEATHER_DIAMOND_DUST,            "DiamondDust" },
+	{ SokuLib::WEATHER_DUST_STORM,              "DustStorm" },
+	{ SokuLib::WEATHER_SCORCHING_SUN,           "ScorchingSun" },
+	{ SokuLib::WEATHER_MONSOON,                 "Monsoon" },
+	{ SokuLib::WEATHER_AURORA,                  "Aurora" },
+	{ SokuLib::WEATHER_TWILIGHT,                "Twilight" },
+	{ CUSTOMWEATHER_ANGEL_HALO,                 "AngelHalo" },
+	{ CUSTOMWEATHER_DESERT_MIRAGE,              "DesertMirage" },
+	{ CUSTOMWEATHER_SHOOTING_STAR,              "ShootingStar" },
+	{ CUSTOMWEATHER_THUNDERSTORM,               "Thunderstorm" },
+	{ CUSTOMWEATHER_IMPASSABLE_FOG,             "ImpassableFog" },
+	{ CUSTOMWEATHER_ANTINOMY_OF_COMMON_WEATHER, "AntinomyOfCommonWeather" },
+	{ CUSTOMWEATHER_FORGETFUL_WIND,             "ForgetfulWind" },
+	{ CUSTOMWEATHER_BLIZZARD,                   "Blizzard" },
+	{ CUSTOMWEATHER_RAGNAROK,                   "Ragnarok" },
+	{ CUSTOMWEATHER_HAAR,                       "Haar" },
+	{ CUSTOMWEATHER_MISSING_PURPLE_MIST,        "MissingPurpleMist" },
+	{ CUSTOMWEATHER_WATER_HAZE,                 "WaterHaze" },
+	{ CUSTOMWEATHER_REVERSE_FIELD,              "ReverseField" },
+	{ CUSTOMWEATHER_ILLUSION_MIST,              "IllusionMist" },
+	{ CUSTOMWEATHER_ETERNAL_NIGHT,              "EternalNight" },
+	{ CUSTOMWEATHER_FROST,                      "Frost" },
+	{ CUSTOMWEATHER_HOT_WIND,                   "HotWind" },
+	{ CUSTOMWEATHER_MYSTERIOUS_WIND,            "MysteriousWind" },
+};
+std::map<unsigned, unsigned> order;
+unsigned forcedWeather;
+unsigned clearMultiplier;
 
 void deleteCharacter(SokuLib::CharacterManager *p)
 {
@@ -658,88 +710,70 @@ void loadTexture(SokuLib::DrawUtils::Sprite &sprite, const char *path, bool came
 
 int selectRandomWeather(bool includeAurora)
 {
-#ifdef FORCE_WEATHER
-	return FORCE_WEATHER;
-#elif defined(DISABLE_VANILLA)
-	auto result = sokuRand((CUSTOMWEATHER_SIZE - SokuLib::WEATHER_CLEAR + 1) - 3 + includeAurora * 2);
+	printf("Forced weather %i\n", forcedWeather);
+	if (forcedWeather != SokuLib::WEATHER_CLEAR)
+		return forcedWeather;
 
-	result += SokuLib::WEATHER_AURORA;
-	if (result >= SokuLib::WEATHER_AURORA && !includeAurora)
-		result++;
-	if (result >= SokuLib::WEATHER_CLEAR)
-		result++;
-	if (result >= CUSTOMWEATHER_SHOOTING_STAR && !includeAurora)
-		result++;
-	return result;
-#else
-	auto result = sokuRand(CUSTOMWEATHER_SIZE - 3 + includeAurora * 2);
+	std::vector<unsigned> weathers;
 
-	if (result >= SokuLib::WEATHER_AURORA && !includeAurora)
-		result++;
-	if (result >= SokuLib::WEATHER_CLEAR)
-		result++;
-	if (result >= CUSTOMWEATHER_SHOOTING_STAR && !includeAurora)
-		result++;
-	return result;
-#endif
+	weathers.reserve(order.size());
+	for (auto &w : order)
+		if (includeAurora || (w.first != SokuLib::WEATHER_AURORA && w.first != CUSTOMWEATHER_SHOOTING_STAR))
+			weathers.push_back(w.first);
+
+	if (weathers.empty()) {
+		puts("No weathers!");
+		return SokuLib::WEATHER_CLEAR;
+	}
+
+	auto r = sokuRand(weathers.size());
+
+	if (r == weathers.size())
+		r--;
+	printf("Selected weather %i -> %i\n", r, weathers[r]);
+	return weathers[r];
 }
 
 int selectNextWeather(SokuLib::Weather weatherId, bool noAurora)
 {
-#ifdef FORCE_WEATHER
-	return FORCE_WEATHER;
-#elif defined(DISABLE_VANILLA)
-	if (weatherId == SokuLib::WEATHER_TWILIGHT)
-		return SokuLib::WEATHER_CLEAR + 1;
-	if (weatherId == (CUSTOMWEATHER_SIZE - 1))
-		return noAurora ? SokuLib::WEATHER_TWILIGHT : SokuLib::WEATHER_AURORA;
-	if (weatherId == SokuLib::WEATHER_AURORA)
-		return SokuLib::WEATHER_TWILIGHT;
-	if (noAurora && weatherId == (CUSTOMWEATHER_SHOOTING_STAR - 1))
-		return CUSTOMWEATHER_SHOOTING_STAR + 1;
-	return weatherId + 1;
-#else
-	if (weatherId == SokuLib::WEATHER_MONSOON)
-		return SokuLib::WEATHER_TWILIGHT;
-	if (weatherId == SokuLib::WEATHER_TWILIGHT)
-		return SokuLib::WEATHER_CLEAR + 1;
-	if (weatherId == (CUSTOMWEATHER_SIZE - 1))
-		return noAurora ? SokuLib::WEATHER_SUNNY : SokuLib::WEATHER_AURORA;
-	if (weatherId == SokuLib::WEATHER_AURORA)
-		return SokuLib::WEATHER_SUNNY;
-	if (noAurora && weatherId == (CUSTOMWEATHER_SHOOTING_STAR - 1))
-		return CUSTOMWEATHER_SHOOTING_STAR + 1;
-	return weatherId + 1;
-#endif
+	unsigned w = weatherId;
+
+	printf("selectNextWeather %i %s -> ", weatherId, noAurora ? "false" : "true");
+	fflush(stdout);
+	if (w == SokuLib::WEATHER_CLEAR) {
+		printf("case %i\n",order.begin()->first);
+		return order.begin()->first;
+	}
+	do {
+		w = order.at(w);
+	} while (w != weatherId && noAurora && (
+		w == SokuLib::WEATHER_AURORA ||
+		w == CUSTOMWEATHER_SHOOTING_STAR
+	));
+	printf("%i\n", w);
+	return w;
 }
 
 int selectPreviousWeather(SokuLib::Weather weatherId, bool noAurora)
 {
-#ifdef FORCE_WEATHER
-	return FORCE_WEATHER;
-#elif defined(DISABLE_VANILLA)
-	if (weatherId == (SokuLib::WEATHER_CLEAR + 1))
-		return SokuLib::WEATHER_TWILIGHT;
-	if (weatherId == SokuLib::WEATHER_TWILIGHT)
-		return noAurora ? (CUSTOMWEATHER_SIZE - 1) : SokuLib::WEATHER_AURORA;
-	if (weatherId == SokuLib::WEATHER_AURORA)
-		return CUSTOMWEATHER_SIZE - 1;
-	if (noAurora && weatherId == (CUSTOMWEATHER_SHOOTING_STAR + 1))
-		return CUSTOMWEATHER_SHOOTING_STAR - 1;
-	return weatherId - 1;
-#else
-	if (weatherId == SokuLib::WEATHER_TWILIGHT)
-		return SokuLib::WEATHER_MONSOON;
-	if (weatherId == (SokuLib::WEATHER_CLEAR + 1))
-		return SokuLib::WEATHER_TWILIGHT;
-	if (weatherId == SokuLib::WEATHER_SUNNY)
-		return noAurora ? (CUSTOMWEATHER_SIZE - 1) : SokuLib::WEATHER_AURORA;
-	if (weatherId == SokuLib::WEATHER_AURORA)
-		return CUSTOMWEATHER_SIZE - 1;
-	if (noAurora && weatherId == (CUSTOMWEATHER_SHOOTING_STAR + 1))
-		return CUSTOMWEATHER_SHOOTING_STAR - 1;
-	return weatherId - 1;
-#endif
+	unsigned w = weatherId;
+
+	printf("selectPreviousWeather %i %s -> ", weatherId, noAurora ? "false" : "true");
+	fflush(stdout);
+	if (w == SokuLib::WEATHER_CLEAR) {
+		printf("case %i\n",order.begin()->first);
+		return order.begin()->first;
+	}
+	do {
+		w = std::find_if(order.begin(), order.end(), [w](std::pair<unsigned, unsigned> p) {
+			return p.second == w;
+		})->first;
+	} while (w != weatherId && noAurora && (
+		w == SokuLib::WEATHER_AURORA ||
+		w == CUSTOMWEATHER_SHOOTING_STAR
+	));
+	printf("%i\n", w);
+	return w;
 }
 
 void __fastcall handleSwitchWeather(unsigned obj, SokuLib::Weather weatherId)
@@ -789,6 +823,8 @@ int __fastcall CBattleManager_OnMatchProcess(SokuLib::BattleManager *This)
 	};
 	auto ret = (This->*ogBattleMgrOnMatchProcess)();
 
+	if (forcedWeather != SokuLib::WEATHER_CLEAR)
+		SokuLib::weatherCounter = 999;
 	if (This->leftCharacterManager.effectiveWeather == CUSTOMWEATHER_MISSING_PURPLE_MIST)
 		This->leftCharacterManager.objectBase.center.y = 0;
 	if (This->rightCharacterManager.effectiveWeather == CUSTOMWEATHER_MISSING_PURPLE_MIST)
@@ -1342,8 +1378,11 @@ void weatherEffectSet()
 				auto s = sokuRand(3);
 				auto l = sokuRand(4 + (s != 0));
 
+				s -= (s == 3);
+				l += (s == 0);
+				l -= (l == 5);
 				This->skillMap[i + nbSkills * s].notUsed = false;
-				This->skillMap[i + nbSkills * s].level = l + (i != 0);
+				This->skillMap[i + nbSkills * s].level = l;
 			}
 		}
 		break;
@@ -2111,6 +2150,61 @@ void __declspec(naked) slideSub()
 	}
 }
 
+void loadWeatherIni(HMODULE hMyModule)
+{
+	wchar_t profilePath[1024];
+	wchar_t buffer[128];
+	char buffer2[128];
+
+	GetModuleFileNameW(hMyModule, profilePath, 1024);
+	PathRemoveFileSpecW(profilePath);
+	PathAppendW(profilePath, L"CustomWeathers.ini");
+
+	GetPrivateProfileStringW(L"Misc", L"ForcedWeather", L"None", buffer, sizeof(buffer) / sizeof(*buffer), profilePath);
+	for (unsigned i = 0; i < sizeof(buffer2); i++)
+		buffer2[i] = buffer[i];
+
+	auto it = std::find_if(weatherNames.begin(), weatherNames.end(), [buffer2](std::pair<unsigned, std::string> p) {
+		return p.second == buffer2;
+	});
+
+	printf("'%s'\n", buffer2);
+	if (it == weatherNames.end())
+		forcedWeather = SokuLib::WEATHER_CLEAR;
+	else
+		forcedWeather = it->first;
+	clearMultiplier = GetPrivateProfileIntW(L"Misc", L"ClearTimerMultiplier", 1, profilePath);
+
+	std::vector<unsigned> weathers;
+
+	weathers.reserve(weatherNames.size());
+	for (auto &weather : weatherNames) {
+		for (int i = 0; i < weather.second.size(); i++)
+			buffer[i] = weather.second[i];
+		buffer[weather.second.size()] = 0;
+
+		int val = GetPrivateProfileIntW(L"WeatherOrder", buffer, -1, profilePath);
+
+		if (val < 0)
+			continue;
+		weathers.push_back((val << 12) | weather.first);
+	}
+	std::sort(weathers.begin(), weathers.end());
+	if (weathers.empty())
+		weathers.push_back(SokuLib::WEATHER_CLEAR);
+	for (auto &w : weathers)
+		w &= (1 << 12) - 1;
+	for (size_t i = 0; i < weathers.size(); i++) {
+		if (i + 1 == weathers.size()) {
+			order[weathers[i]] = weathers[0];
+			printf("%X -> %X\n", weathers[i], weathers[0]);
+		} else {
+			order[weathers[i]] = weathers[i + 1];
+			printf("%X -> %X\n", weathers[i], weathers[i + 1]);
+		}
+	}
+}
+
 // Called when the mod loader is ready to initialize this module.
 // All hooks should be placed here. It's also a good moment to load settings from the ini.
 extern "C" __declspec(dllexport) bool Initialize(HMODULE hMyModule, HMODULE hParentModule)
@@ -2159,6 +2253,7 @@ extern "C" __declspec(dllexport) bool Initialize(HMODULE hMyModule, HMODULE hPar
 	freopen_s(&_, "CONOUT$", "w", stdout);
 	freopen_s(&_, "CONOUT$", "w", stderr);
 #endif
+	loadWeatherIni(hMyModule);
 	my_assert(sameFctCall(0x47A91D, 0x47A94F));
 	my_assert(sameFctCall(0x47A91D, 0x47A972));
 	my_assert(sameFctCall(0x47A91D, 0x47A97F));
@@ -2334,7 +2429,7 @@ extern "C" __declspec(dllexport) bool Initialize(HMODULE hMyModule, HMODULE hPar
 	og_handDataOperatorBracket = SokuLib::TamperNearJmpOpr(0x48AF7C, checkExtraSystemCards_hook);
 
 	// Increase speed of timer in clear
-	*(unsigned char *)0x48242B = WEATHER_TIMER_MULTIPLIER;
+	*(unsigned char *)0x48242B = clearMultiplier;
 
 	*(char *)0x48ACF0 = 0x90;
 	*(char *)0x48ACF1 = 0xE9;
